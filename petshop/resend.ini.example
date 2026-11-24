@@ -1,0 +1,4 @@
+[resend]
+# Copie para resend.ini e preencha sua chave. Nunca compartilhe o arquivo preenchido.
+api_key =
+from = Pet Shop <onboarding@resend.dev>

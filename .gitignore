@@ -1,0 +1,61 @@
+# Python: bytecode, ambientes virtuais e ferramentas locais
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.egg-info/
+build/
+dist/
+
+# Dados locais do aplicativo e arquivos auxiliares do SQLite
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+backups/
+backup/
+*.bak
+
+# Credenciais e configurações privadas; preservar os modelos sem segredo
+.env
+.env.*
+!.env.example
+!.env.sample
+resend.ini
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editor, sistema operacional e arquivos temporários
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+*.tmp
+*.log
+~$*
+.~lock.*#
+
+# Pacotes de entrega duplicados; PDFs, DOCX, PPTX e evidências são versionados
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z

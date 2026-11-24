@@ -1,0 +1,30 @@
+Dados fictícios inseridos: 3 profissionais, 4 concluídos e 3 reservas simultâneas.
+OK aba Profissionais e equipe fictícia
+OK equipe fictícia não duplica nem cria logins
+OK busca mantém destaque e edição não salva
+OK recusar descarte preserva formulário e filtro anterior
+OK filtro que oculta registro encerra edição após confirmação
+OK nenhuma alteração de pesquisa foi gravada
+OK interface rejeita fração de centavo e preserva entrada
+OK preço armazenado em centavos e formulário com vírgula
+OK tabela exibe reais com dois decimais
+OK cadastro de profissional pela interface
+OK edição de profissional pela interface
+OK cadastro com profissional
+OK botão Concluir recusa atendimento futuro
+OK interface informa conflito do profissional
+OK outro profissional aceita horário paralelo
+OK filtro de agenda por profissional
+OK Reagendar para agora salva horário realizado
+OK correção de horário passado pela interface
+OK conclusão após reagendar aceita
+OK troca de tutor preserva conclusão antiga
+OK novo atendimento usa novo tutor
+OK histórico gráfico usa os dois tutores
+OK total gráfico soma centavos exatamente
+OK inativação remove profissional de novas reservas
+OK inativação não troca profissional de edição aberta
+OK reativação devolve profissional à agenda
+OK tabela apresenta fim estimado
+OK cancelamento pela interface preserva motivo e registro
+28/28 verificações gráficas da revisão aprovadas. Dados fictícios; sem e-mail real.

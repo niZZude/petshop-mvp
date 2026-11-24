@@ -1,0 +1,33 @@
+OK primeiro acesso e e-mail sugerido
+OK primeiro acesso rejeita campos vazios
+OK primeiro acesso autentica
+OK bloqueio após cinco falhas
+OK bloqueio impede senha correta
+OK acesso após fim do bloqueio
+Dados fictícios inseridos: 3 profissionais, 4 concluídos e 3 reservas simultâneas.
+OK abas e dados da demonstração
+OK seleção carrega CPF formatado
+OK edição confirmada
+OK CPF repetido bloqueado sem limpar
+OK e-mail repetido com outro CPF bloqueado
+OK borda vermelha no e-mail
+OK cliente novo permitido
+OK excluir cliente livre
+OK cliente vinculado protegido
+OK limpar remove cores e seleção
+OK inativação remove opção de agendar
+OK reativação
+OK agendamento pela interface
+OK cancelamento com motivo
+OK finalizado abre só consulta
+OK histórico de concluídos
+OK backup pela interface
+OK Minha conta carrega e-mail do usuário
+OK alterar e-mail exige senha atual
+OK alterar e-mail autenticado
+OK novo usuário com e-mail
+OK Sair encerra sessão
+OK envio em segundo plano
+OK redefinir limpa os campos sensíveis
+OK login com a nova senha
+31/31 verificações gráficas aprovadas. Nenhum e-mail real enviado.

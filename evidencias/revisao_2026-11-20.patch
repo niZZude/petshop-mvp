@@ -1,0 +1,1683 @@
+--- a/petshop_mvp/ANALISE_DO_FLUXO.md
++++ b/petshop_mvp/ANALISE_DO_FLUXO.md
+@@ -1,85 +1,40 @@
+-# Análise do fluxo do Sistema para Pet Shop
++# Análise do fluxo — revisão de 20/11/2026
+ 
+-O aplicativo faz sentido como MVP acadêmico de gestão local de pet shop. A sequência cliente → animal → serviço → atendimento → histórico representa o trabalho do balcão e permite demonstrar interface gráfica, CRUD, relacionamentos, validação, transações e integração com uma API sem exigir um sistema web.
++O sistema é um MVP acadêmico local de gestão de pet shop. A revisão transforma o retorno do solicitante em regras observáveis: reagendar para o horário realizado, recusar conclusão futura, preservar o tutor da realização, reservar cada profissional pelo intervalo do serviço e calcular valores em centavos. Python, CustomTkinter e SQLite continuam adequados ao escopo.
+ 
+-Esta avaliação corresponde à versão reconstruída após a exclusão da pasta original em 07/11/2026. O banco excluído não foi recuperado. Os dados usados nas verificações e capturas são fictícios.
++## Jornada implementada
+ 
+-## Jornada e coerência
++| Etapa | Comportamento atual | Observação crítica |
++|---|---|---|
++| Preparação | Primeiro acesso, tutores, animais, serviços e profissionais | Profissional executa serviços; usuário entra no sistema. Não são a mesma entidade. |
++| Agenda | Novo agendamento futuro exige profissional e serviço ativos | Protege animal e profissional, não apenas o horário pontual. |
++| Reagendamento | Só agendados; permite corrigir horário para passado/agora com confirmação | O operador informa o horário real. O sistema não comprova execução física. |
++| Conclusão | Exige início já alcançado e profissional atribuído | Pode terminar antes da duração prevista, mas a reserva segue até o fim estimado. |
++| Cancelamento | Exige motivo, mantém registro e libera intervalo | Estados finais não são editáveis pela API. |
++| Histórico | Mantém tutor e profissional da realização, descrição contratada, valor e duração | Transferência ou renomeação posterior não reescreve a identidade registrada. |
++| Busca e edição | Mantém seleção enquanto visível; encerra quando filtro oculta | Se houver mudança não salva, o descarte pode ser recusado. |
++| Proteção | Escritas transacionais e backup pela API SQLite | Conflito verificado dentro da transação evita duas reservas simultâneas do mesmo profissional. |
+ 
+-| Etapa | Comportamento | Avaliação |
+-|---|---|---|
+-| Primeiro acesso | Cria usuário e e-mail de recuperação | Coerente para instalação local, sem credencial padrão |
+-| Login | Valida hash e bloqueia a tela temporariamente após cinco erros | Adequado ao exercício; bloqueio não é uma política global entre computadores |
+-| Preparação | Cadastra tutores, animais vinculados e serviços | Ordem correta das dependências; serviços são preparados e reutilizados |
+-| Agenda | Exige futuro, serviço ativo e ausência de sobreposição do mesmo animal | Consistente com o escopo atual; não representa a capacidade total do estabelecimento |
+-| Alteração | Seleção, edição, comparação antes/depois e confirmação | Evita alteração acidental; há operação transacional após a confirmação |
+-| Cancelamento | Exige motivo e mantém o registro | Coerente com rastreabilidade |
+-| Conclusão | Torna o atendimento consultável no histórico | Coerente como estado final, com uma regra temporal ainda a definir |
+-| Backup | Cópia consistente pelo SQLite | Protege o banco mesmo com WAL e aplicativo aberto |
+-| Recuperação | Usuário e e-mail → código → nova senha → login | Resolve perda de senha sem eliminar clientes ou histórico |
++## Regras que resolvem os cinco pontos da revisão
+ 
+-## Identidade e contatos
++1. **Reagendar para concluir:** novos registros exigem futuro. Um agendado pode ser corrigido para o horário em que aconteceu, inclusive passado/agora. A conclusão compara o início com o relógio local e recusa futuro. O botão Reagendar para agora evita digitação quando o serviço começou agora.
++2. **Tutor histórico:** enquanto agendado, a consulta mostra o tutor atual do animal. A conclusão guarda o nome do tutor vinculado naquele momento. Depois de transferir o animal, o atendimento antigo mantém esse nome e uma nova realização usa o novo tutor. O nome do profissional na conclusão também é preservado. A descrição do serviço é a contratada no agendamento, mantida em reagendamentos do mesmo serviço.
++3. **Seleção consistente:** foi reproduzida a falha anterior: ao filtrar Carlos após selecionar Maria, o destaque desaparecia, mas `self.sel` ainda apontava para Maria. Agora a tabela atualiza as linhas existentes e preserva destaque e texto em edição; se o filtro ocultar o registro, encerra a edição. Com mudanças não salvas, há confirmação de descarte e possibilidade de restaurar o filtro anterior. Não foi comprovado dano real a dados; foi comprovada inconsistência de estado.
++4. **Centavos:** entradas aceitam ponto ou vírgula, sem separador de milhar. Frações de centavo novas são recusadas; 0,10 + 0,20 soma exatamente 30 centavos. Preços, atendimento e totais usam inteiros. A exibição é brasileira, com duas casas.
++5. **Agenda do profissional:** cada reserva tem profissional. Uma reserva 10h–11h impede outro atendimento do mesmo profissional às 10h30, mas permite começar às 11h. Outro profissional pode atender outro animal em paralelo. Concluir às 10h20 não libera o restante da reserva; cancelar libera. A duração contratada, e não a duração atual do catálogo, define o intervalo.
+ 
+-A regra solicitada foi mantida: CPF e e-mail informado são únicos de forma independente. Nome, telefone e endereço podem ser todos iguais entre pessoas diferentes. O ID continua sendo a chave dos vínculos, permitindo corrigir documentos sem transferir os animais.
++## Dados de demonstração
+ 
+-O CPF é obrigatório nos novos clientes. O e-mail é opcional: não informar e-mail não equivale a compartilhar um endereço. A validação de dígitos do CPF apenas confere a estrutura matemática, sem comprovar titularidade ou situação cadastral. Mensagens de duplicidade preservam o formulário para correção.
++A carga fictícia traz Ana Souza e Bruno Lima (Banho e tosa) e Carla Santos (Atendimento veterinário), quatro atendimentos concluídos e três reservas paralelas, uma por profissional. A aba Profissionais permite adicionar somente a equipe a uma base de ensaio existente, sem duplicar nomes, criar usuários ou alterar reservas antigas. Função é descritiva: não há validação de especialidade por serviço.
+ 
+-E-mail único é uma decisão de negócio deste trabalho: uma família que divide a mesma caixa postal não poderá usar esse endereço em dois tutores. Isso não é uma limitação do SQLite, e sim a política escolhida. Para o enunciado atual, o comportamento está correto.
++## Migração e limites
+ 
+-Usuário e cliente são entidades diferentes. O e-mail de recuperação pertence ao usuário que entra no sistema, não ao tutor de um animal. Não há encaminhamento de senhas de todos os usuários para o Gmail do autor. O Gmail informado é uma sugestão no primeiro acesso, que pode ser editada.
++IDs e vínculos são preservados. Atendimentos anteriores não permitem descobrir automaticamente um tutor antigo já substituído: a migração conserva o nome disponível, marca a origem e não afirma ter recuperado a identidade original. Profissional desconhecido permanece sem atribuição, exigindo escolha antes da conclusão de agendado legado.
+ 
+-## O que está bem resolvido
++Valores anteriores com fração de centavo usam arredondamento decimal por metade para cima, com registro do valor anterior em `ajuste_monetario_migracao`. Valores que não produzam centavos positivos interrompem essa etapa para revisão. Os campos monetários anteriores são espelhos de compatibilidade; triggers exigem correspondência com os centavos inteiros.
+ 
+-- Exclusões respeitam vínculos; cancelamentos preservam atendimentos.
+-- Preço e duração são copiados para o atendimento. Alterar o catálogo não muda o combinado. Reagendar com o mesmo serviço preserva os dois valores; trocar serviço copia os valores novos.
+-- Restrições únicas no banco protegem inclusive tentativas simultâneas. Consultar antes de salvar, sozinho, não garantiria isso.
+-- As funções de gravação repetem validações importantes, sem depender apenas da interface.
+-- Avisos amarelos permitem dados legítimos compartilhados; CPF/e-mail em conflito ficam vermelhos.
+-- O envio HTTP ocorre em segundo plano, fora de uma transação, com timeout. A interface continua respondendo.
+-- O total no Histórico se chama **Total de serviços concluídos** e a tela informa que não controla pagamentos. Essa definição evita confundir conclusão com dinheiro recebido.
++Não há expediente, pausas, férias, especialidades obrigatórias, pagamentos ou perfis administrativos. Todos os acessos internos possuem as mesmas funções. Recuperação mantém as proteções anteriores, usa Resend simulada nos testes e não revoga automaticamente janelas já autenticadas. A entrega real de e-mail continua pendente de configuração. Não há necessidade de trocar a stack para cumprir esta revisão.
+ 
+-## Pontos que ainda exigem decisão
++## Evidência acadêmica
+ 
+-### Concluir antes do horário
+-
+-Hoje, um atendimento agendado para amanhã pode ser marcado como concluído hoje. A regra existente só exige estado `agendado`. Isso facilita demonstração, mas pode gerar histórico antes da execução real.
+-
+-Próxima regra sugerida: permitir concluir após o início previsto, ou modelar início e término reais se isso fizer parte do escopo. Não inserir uma espera obrigatória de toda a duração sem antes decidir se o serviço pode terminar antes do previsto.
+-
+-### Capacidade da agenda
+-
+-Animais diferentes podem ser agendados no mesmo intervalo. Isso está correto se o sistema controla a agenda de cada animal e admite atendimento paralelo. Se o objetivo for uma única bancada ou um único funcionário, falta uma regra de capacidade.
+-
+-Para o trabalho, documentar a premissa já resolve a ambiguidade. Para operação real, acrescentar funcionário/recurso ao atendimento e conferir a sobreposição desse recurso, além da do animal.
+-
+-### O que o histórico deve preservar
+-
+-O valor e a duração são preservados, mas os nomes do serviço e do tutor são consultados pelos relacionamentos atuais. Renomear serviço ou transferir o animal para outro tutor muda a descrição exibida em atendimentos antigos.
+-
+-Se o histórico precisar representar exatamente o dia da contratação, guardar também a descrição do serviço e o tutor da época. A versão atual preserva o registro e seus valores, mas não é um documento fiscal ou uma auditoria imutável.
+-
+-### Permissões e sessões
+-
+-Os usuários atuais podem cadastrar novos acessos. O primeiro acesso não cria, por si só, um perfil especial de administrador. Se houver diferença entre administrador e atendente, será necessário definir perfis e aplicar permissões na camada de dados.
+-
+-Redefinir uma senha impede novos logins com a senha anterior. Uma janela já autenticada não é encerrada automaticamente. Revogação de sessões exige modelar sessões ou revalidação; não deve ser prometida nesta versão.
+-
+-### Resend e implantação
+-
+-O modo de teste usa `onboarding@resend.dev` e só envia para o e-mail da própria conta Resend. `nixxude@gmail.com` deve corresponder a essa conta. Para outros destinatários, é necessário um domínio verificado e um remetente desse domínio.
+-
+-A chave é lida de `resend.ini` local ou variável de ambiente. Isso é prático em demonstração controlada por um operador. Distribuir o desktop com uma chave de envio exporia essa chave; em um produto distribuído, o envio deve passar por um backend que guarde o segredo e imponha limites globais.
+-
+-Código com validade de 10 minutos, cinco tentativas, hash com sal, intervalo de reenvio e uso único melhora a recuperação. A integração não comprova entrega na caixa postal: aceitação da API e entrega são eventos diferentes. O envio real permanece pendente de uma chave válida.
+-
+-## Prioridade para a disciplina
+-
+-1. Configurar Resend e testar uma recuperação real com o próprio e-mail, usando um banco de demonstração.
+-2. Ensaiar a sequência de cadastro, duplicidade independente, agenda, cancelamento e backup.
+-3. Registrar a premissa de capacidade e decidir quando um atendimento pode ser concluído.
+-4. Se houver tempo, preservar tutor/descrição históricos e definir perfis.
+-5. Manter Python, CustomTkinter e SQLite. A necessidade de backend surge com distribuição e gestão de segredos, não apenas com o tamanho deste exercício.
+-
+-A aplicação é coerente com a proposta acadêmica se apresentada como gestão local de cadastros e serviços. Não deve ser descrita como ERP financeiro, agenda completa de equipe ou solução de autenticação centralizada.
+-
+-Fontes da integração: [envio de e-mail](https://resend.com/docs/api-reference/emails/send-email) e [limitação do remetente de teste](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
++A [matriz de requisitos](REQUISITOS_E_ACEITACAO.md) liga necessidade, regra, tela e teste. A [evolução por iterações](EVOLUCAO_POR_ITERACOES.md) registra somente a linha de base, o retorno desta conversa e a revisão verificável. O [roteiro de validação de uso](VALIDACAO_DE_USO.md) está pronto, mas o estudo com uma pessoa segue pendente. Testes funcionais e capturas não comprovam usabilidade humana.
+--- /dev/null
++++ b/petshop_mvp/EVOLUCAO_POR_ITERACOES.md
+@@ -0,0 +1,38 @@
++# Evolução por iterações — evidências disponíveis
++
++Registro preparado em 20/11/2026. Esta linha do tempo separa o que os documentos anteriores relatam do que foi observado nesta revisão. Não há histórico Git disponível nem registros suficientes para reconstruir sprints, entrevistas ou a participação individual dos autores.
++
++| Marco verificável | Evidência disponível | Retorno / problema constatado | Resultado |
++|---|---|---|---|
++| Entrega documentada em 07/11/2026 | ZIP original, código, apresentação e documento de validação datado | O material já documentava limitações de conclusão futura, agenda sem profissional e nomes históricos derivados de vínculos atuais | Linha de base com cadastros, agenda, recuperação e backup. A data e as 31 verificações gráficas pertencem ao registro anterior; não demonstram sozinhas um processo de iterações. |
++| Revisão crítica em 20/11/2026, antes das mudanças | 52 testes executados com sucesso; inspeção dos 15 slides; reprodução de conclusão futura, mudança de tutor histórico e fração de centavo | A análise identificou regras incompletas e rastreabilidade acadêmica insuficiente | Proposta de correções apresentada ao solicitante. |
++| Retorno do solicitante nesta conversa | Pedido explícito para reagendar sem concluir futuro; preservar tutor de cada realização; executar e demonstrar a correção da seleção; corrigir centavos; vincular agenda ao profissional; registrar evidências | O solicitante não havia percebido o problema da seleção e pediu verificação. Solicitou profissionais fictícios para experimentar a solução | Escopo da revisão definido por esse retorno, sem atribuir entrevistas não realizadas. |
++| Iteração implementada em 20/11/2026 | Código revisado; 78 testes automatizados; 59 verificações gráficas; capturas reais com dados fictícios | Problemas reproduzidos viraram critérios de aceitação e testes | Profissionais e reserva por duração; reagendamento para horário realizado; conclusão futura recusada; tutor histórico; dinheiro em centavos; seleção consistente. |
++| Próxima avaliação com pessoa usuária | [Roteiro e ficha](VALIDACAO_DE_USO.md) prontos | O solicitante confirmou que não houve uso observado por uma pessoa e pediu execução e prints | Pendente de aplicação; conclusões de usabilidade não são inferidas dos testes automatizados. |
++
++## Reprodução do problema de seleção
++
++Foi executada a interface anterior com banco temporário e dados fictícios. Depois de selecionar Maria e pesquisar Carlos, o resultado foi:
++
++```text
++ANTES: seleção visual ('1',); ID em edição 1; nome Maria Oliveira
++APÓS FILTRAR CARLOS: seleção visual (); ID em edição 1; nome Maria Oliveira
++```
++
++Isso confirma a inconsistência de estado; não demonstra que uma pessoa tenha efetivamente alterado o cliente errado. Na revisão, a pesquisa preserva a seleção quando o cliente continua visível e encerra a edição quando o oculta. Se houver mudança não salva, é possível recusar o descarte e voltar ao filtro anterior. Esses caminhos passaram no teste gráfico.
++
++## Identificação da linha de base
++
++Arquivo original preservado na pasta superior: `petshop_entrega_atualizada.zip`.
++
++SHA-256:
++
++```text
++8bab1191fa2236b9a15ee2df8e0b6106a0052076e464fab6d942651760190c57
++```
++
++Na inspeção anterior às mudanças, seus 20 arquivos correspondiam aos arquivos extraídos. A entrega revisada tem outro nome (`petshop_entrega_revisada_drap.zip`). O [patch da revisão](evidencias/revisao_2026-11-20.patch) permite comparar os arquivos de texto com a linha de base.
++
++## O que ainda precisa ser registrado
++
++Após aplicar o roteiro com uma pessoa: identificar o perfil por um código, anotar tarefas, resultado, ajuda necessária e observações literais. Só então registrar uma nova iteração com o retorno real e as mudanças efetivamente implementadas. Não preencher datas, tempos, satisfação ou dificuldades por suposição.
+--- a/petshop_mvp/LEIA_PRIMEIRO.md
++++ b/petshop_mvp/LEIA_PRIMEIRO.md
+@@ -1,12 +1,16 @@
+-# Entrega reconstruída do Pet Shop
++# Entrega Pet Shop — revisão DRAP de 20/11/2026
+ 
+-A pasta original foi excluída pelo usuário durante a execução. Esta entrega reconstrói o código e substitui a apresentação com base nas regras revisadas. O banco antigo e o relatório DOCX excluídos não foram recuperados. Não há dados reais ou senhas padrão no pacote.
++Aplicativo desktop local com tutores, animais, serviços, profissionais, agenda e histórico. A revisão implementa o retorno sobre os cinco pontos da análise crítica e inclui documentação de evidências.
+ 
+-- **Executar:** siga `petshop/README.md`.
+-- **Resend:** copie `petshop/resend.ini.example` para `resend.ini` e preencha a chave localmente. No modo de teste, `nixxude@gmail.com` precisa ser o e-mail da conta Resend.
+-- **Apresentar:** `Etapa4_PetShop.pptx`, com 15 slides editáveis e notas de fala. `Etapa4_PetShop.pdf` é a versão para leitura.
+-- **Regenerar slides:** instale `python-pptx` em um ambiente separado e execute `python apresentacao/gerar_slides.py`. Essa biblioteca não é necessária para o app.
+-- **Análise:** `ANALISE_DO_FLUXO.md` explica coerência, limites e prioridades.
+-- **Verificação:** `VALIDACAO_ETAPA4.md` registra os resultados e a reconstrução.
++- **Executar:** siga [petshop/README.md](petshop/README.md).
++- **Experimentar a equipe:** aceite os dados fictícios no primeiro uso ou abra **Profissionais → Adicionar equipe fictícia**. Ana Souza, Bruno Lima e Carla Santos são exemplos, sem usuário de login associado.
++- **Reagendar e concluir:** selecione um agendado; corrija data/hora ou use **Reagendar para agora**. Confirme e depois conclua. Futuro não pode ser concluído.
++- **Agenda:** mesmo profissional e mesmo animal não podem ter intervalos sobrepostos. A conclusão antecipada mantém a reserva até o fim previsto; cancelamento libera.
++- **Valores:** use `50,05` ou `50.05`. Frações de centavo são recusadas; tabelas e totais mostram duas casas.
++- **Apresentar:** `Etapa4_PetShop.pptx` e `Etapa4_PetShop.pdf`, atualizados para a revisão, com 17 slides e notas de fala. Capturas reais com dados fictícios estão em `evidencias/`.
++- **Evidências:** [requisitos](REQUISITOS_E_ACEITACAO.md), [iterações comprováveis](EVOLUCAO_POR_ITERACOES.md), [validação de uso](VALIDACAO_DE_USO.md) e [resultados técnicos](VALIDACAO_ETAPA4.md).
++- **Resend:** configuração local conforme README; testes não enviam e-mail real. Nunca incluir chave no pacote.
+ 
+-CPF e e-mail informado são únicos separadamente. Nome, telefone e endereço podem repetir. Recuperação de senha usa o e-mail do usuário de acesso; clientes/tutores são outra entidade.
++A linha de base reconstruída de 07/11/2026 está preservada no ZIP original da pasta superior. A revisão tem um novo pacote, `petshop_entrega_revisada_drap.zip`. O banco original e o antigo relatório DOCX excluídos antes desta revisão não foram recuperados. Não há dados reais, credenciais padrão ou chave de API na entrega.
++
++O histórico passa a preservar o tutor da realização. Registros anteriores à revisão conservam os nomes disponíveis na migração e são identificados como legados; o sistema não inventa o tutor ou profissional de um passado que não foi armazenado. CPF e e-mail informado continuam únicos separadamente. Usuário de acesso, tutor e profissional são entidades distintas.
+--- /dev/null
++++ b/petshop_mvp/REQUISITOS_E_ACEITACAO.md
+@@ -0,0 +1,38 @@
++# Requisitos e critérios de aceitação — revisão DRAP de 20/11/2026
++
++Escopo: aplicação desktop local de gestão de atendimentos de pet shop, com Python, CustomTkinter e SQLite. Esta matriz explicita o comportamento implementado a partir dos arquivos disponíveis e do retorno do solicitante nesta revisão. Não substitui uma rubrica oficial da disciplina, que não foi fornecida. A numeração RF abaixo é desta revisão; as notas antigas RN13/RN14 não constituem um catálogo completo de requisitos.
++
++## Matriz de rastreabilidade
++
++Os nomes `Sistema` e `Recuperacao` remetem a [test_sistema.py](petshop/tests/test_sistema.py); `Revisao`, a [test_revisao.py](petshop/tests/test_revisao.py). Os fluxos de widgets estão em [smoke_interface.py](petshop/tests/smoke_interface.py) e [smoke_revisao.py](petshop/tests/smoke_revisao.py).
++
++| ID / necessidade | Regra e critério observável de aceitação | Tela | Evidência automatizada |
++|---|---|---|---|
++| RF01 — Criar acesso e autenticar | Primeiro uso não tem senha padrão. Credencial válida entra; inválida é recusada. Cinco erros bloqueiam a janela por 30 s. | Primeiro acesso / Login | `Sistema.test_usuario_hash_login_normalizado`; smoke original: primeiro acesso e bloqueio |
++| RF02 — Recuperar acesso | Código válido troca senha uma vez; código expirado, consumido ou com cinco erros não troca. | Esqueci minha senha | `Recuperacao.test_fluxo_uso_unico`, `test_expiracao`, `test_limite_falhas`; smoke original: nova senha |
++| RF03 — Identificar tutores | CPF obrigatório e válido em novo cadastro; CPF e e-mail são únicos separadamente; telefone/nome/endereço podem repetir. | Clientes | `Sistema.test_cpf_repetido_email_diferente`, `test_email_repetido_cpf_diferente`, `test_demais_dados_iguais` |
++| RF04 — Vincular animais | Animal tem tutor existente. Exclusão de tutor com animais e de animal com atendimentos é recusada. | Animais / Clientes | `Sistema.test_fk_invalida`, `test_cliente_vinculado_nao_exclui`, `test_animal_com_historico_nao_exclui` |
++| RF05 — Precificar serviços | `50,05` e `50.05` viram 5005 centavos; `0,005` é recusado; preço e total são exibidos com duas casas. Duração é inteira e positiva. | Serviços / Histórico | `Revisao.test_centavos_entrada_exibicao_e_soma`, `test_fracao_de_centavo_e_formato_ambiguo_recusados`, `test_centavos_soma_historico`; smoke novo: preço e total |
++| RF06 — Manter profissionais | Nome e função são obrigatórios; nome não se repete; inativação remove das novas reservas sem apagar histórico. Equipe fictícia pode ser adicionada sem duplicar ou criar login. | Profissionais | `Revisao.test_profissional_obrigatorio_ativo_e_unico`, `test_equipe_demo_repetivel_e_sem_logins`; smoke novo: inativar/reativar |
++| RF07 — Agendar | Novo atendimento exige horário futuro, animal existente, serviço ativo e profissional ativo. Copia preço, descrição e duração contratados. | Atendimentos | `Sistema.test_data_passada_e_servico_inativo`; `Revisao.test_profissional_obrigatorio_ativo_e_unico`, `test_reagendar_preserva_preco_duracao_e_descricao` |
++| RF08 — Reservar o profissional | Mesmo profissional não atende dois animais em intervalos sobrepostos. Reserva vai do início ao fim estimado; início no fim exato é permitido. | Atendimentos / filtro de profissional | `Revisao.test_mesmo_profissional_outro_animal_bloqueia_intervalo`, `test_inicio_no_fim_exato_permitido`, `test_intervalo_atravessa_meia_noite` |
++| RF09 — Permitir trabalho paralelo | Profissionais diferentes atendem animais diferentes no mesmo horário. O mesmo animal não pode ter duas reservas sobrepostas. | Atendimentos | `Revisao.test_profissionais_distintos_podem_atender_em_paralelo`, `test_mesmo_animal_outro_profissional_continua_bloqueado` |
++| RF10 — Reagendar e concluir | Agendado pode ter horário corrigido para o passado/agora, com confirmação na tela. Futuro não conclui. Após o início pode concluir; conclusão antecipada não libera o restante da reserva. | Atendimentos / Reagendar para agora / Concluir | `Revisao.test_reagendar_passado_e_concluir`, `test_reagendar_minuto_atual_e_concluir`, `test_conclusao_futura_recusada_sem_mudar_estado`, `test_concluir_antes_do_fim_nao_libera_reserva`; smoke novo |
++| RF11 — Cancelar sem apagar | Cancelamento exige motivo, conserva registro e libera intervalo. Estados finais não podem ser editados pela API. | Atendimentos / Cancelar | `Sistema.test_cancelar_exige_motivo`, `test_status_final_bloqueia_mutacoes`; `Revisao.test_cancelar_libera_profissional`; smoke original |
++| RF12 — Preservar realização | Conclusão guarda o nome do tutor e profissional da realização. Transferência posterior não altera o passado; nova realização usa o novo tutor. Descrição contratada é preservada. | Histórico | `Revisao.test_tutor_historico_e_novo_atendimento`, `test_tutor_da_realizacao_e_nao_so_do_agendamento`, `test_servico_e_profissional_historicos_preservados`; smoke novo: dois tutores |
++| RF13 — Editar sem seleção oculta | Busca mantém destaque e edição enquanto o registro está visível. Se o ocultar, encerra edição; alterações não salvas exigem confirmação de descarte, que pode ser recusada. | Todas as listas com formulário | Smoke novo: busca mantém seleção; recusar descarte; aceitar encerra; pesquisa não grava |
++| RF14 — Proteger reservas simultâneas | Duas gravações concorrentes no mesmo intervalo/profissional têm um único vencedor, mesmo com animais distintos. | Camada de dados de Atendimentos | `Revisao.test_concorrencia_mesmo_profissional_animais_distintos`; `Sistema.test_concorrencia_agenda` |
++| RF15 — Migrar e copiar dados | Preserva IDs e vínculos; profissionais desconhecidos não são inventados. Origem legada é indicada. Ajustes monetários conservam valor anterior. Backup consistente não sobrescreve arquivo. | Inicialização / Histórico / Backup | `Revisao.test_migracao_legada_preserva_ids_e_indica_origem`; `Sistema.test_backup`, `test_migracao_conflito_nao_exclui` |
++
++## Decisões explícitas de negócio
++
++- O horário corrigido é informado pelo operador. O MVP não verifica presença física, não modela pagamentos e não comprova prestação de serviço.
++- O tutor da realização é o tutor vinculado ao animal quando o operador conclui. Para registrar uma troca de responsável, atualize o animal antes de concluir o novo atendimento. Depois da conclusão, renomear ou transferir não reescreve o nome gravado.
++- A reserva considera `[início, fim estimado)`. Atendimentos agendados e concluídos ocupam esse intervalo; cancelados não. Alterar a duração no catálogo não encurta uma reserva já contratada.
++- Profissional e usuário de login são entidades diferentes. A função do profissional é descritiva: não há regra de habilitação por serviço, expediente, pausas ou férias nesta entrega.
++- Novos preços com fração de centavo são recusados. Valores legados são arredondados por metade para cima, com registro de ajustes. Totais somam inteiros em centavos.
++- A migração não reconstrói uma identidade histórica que nunca foi armazenada: usa os nomes disponíveis e marca a origem como migração. Agendados legados exigem atribuição de profissional antes da conclusão.
++
++## Evidência e limite
++
++A revisão executou 78 testes automatizados e 59 verificações gráficas com dados fictícios. As capturas são do aplicativo real. Entrega de e-mail real, ensaio no Windows e observação de uma pessoa usando o sistema não foram comprovados nesta execução. O [roteiro de uso](VALIDACAO_DE_USO.md) define como registrar essa última evidência sem confundi-la com automação.
+--- /dev/null
++++ b/petshop_mvp/VALIDACAO_DE_USO.md
+@@ -0,0 +1,50 @@
++# Validação de uso — roteiro e ficha de observação
++
++**Situação em 20/11/2026: sessão com pessoa usuária ainda não realizada.** O solicitante confirmou nesta conversa que o projeto nunca foi usado dessa forma e autorizou executar o app e produzir prints. Foi realizada demonstração funcional automatizada com o aplicativo real e dados fictícios; o roteiro humano abaixo permanece disponível para aplicação futura. As 59 verificações gráficas executadas pelo agente são testes funcionais dos widgets, com respostas automáticas às confirmações. Elas não medem entendimento, satisfação ou dificuldade de uma pessoa. As imagens em `evidencias/` usam dados fictícios e não representam uma sessão com participante.
++
++## Preparação
++
++Usar uma cópia de demonstração, sem dados reais. Executar `python app.py`, criar o acesso e aceitar a carga fictícia, ou usar **Profissionais → Adicionar equipe fictícia** em uma base de ensaio já existente. Confirmar que há serviços e profissionais ativos. O observador lê uma tarefa de cada vez, deixa a pessoa tentar e anota qualquer ajuda; não deve conduzir os cliques nem inventar resultados. Não é necessário gravar nome completo nem imagem do participante.
++
++## Tarefas e resultados esperados
++
++| Tarefa para a pessoa | Resultado esperado / critério de sucesso | Registrar durante a sessão |
++|---|---|---|
++| T1. Cadastre um tutor fictício e um animal | Tutor salvo com CPF válido e animal vinculado corretamente. Usar, por exemplo, CPF de teste `98765432100`, se ainda não cadastrado. | Tempo; sucesso; erros; ajuda; observação literal |
++| T2. Prepare um serviço de R$ 35,75 e duração de 45 min | Valor exibido como `R$ 35,75`; duração 45. Ao tentar `35,755`, recebe orientação e mantém o formulário. | Se entendeu vírgula/ponto e mensagem de erro |
++| T3. Agende amanhã às 10h com Ana Souza | Reserva do animal com início 10h e fim 10h45. | Se identificou profissional e fim previsto |
++| T4. Tente outro animal com Ana às 10h15; depois escolha Bruno | Ana é recusada por conflito. Bruno aceita trabalho paralelo. A função profissional é descritiva, sem restrição de especialidade. | Se entendeu o conflito e conseguiu corrigi-lo |
++| T5. Cancele a reserva de Ana com motivo; tente ocupar o intervalo novamente | Registro cancelado permanece; profissional fica disponível nesse intervalo. | Se entendeu que cancelar preserva o registro |
++| T6. Tente concluir um atendimento futuro; depois corrija com Reagendar para agora e conclua | Futuro é recusado. Correção confirmada permite concluir. Usar intervalo atual sem conflito com outro teste. | Se distinguiu reagendar de concluir e entendeu as confirmações |
++| T7. Transfira o animal para outro tutor e consulte o histórico | Atendimento concluído conserva o tutor anterior. Outro atendimento, realizado e concluído depois da transferência, usa o novo tutor. | Se interpretou corretamente os dois registros |
++| T8. Edite o nome de um tutor sem salvar e pesquise outro tutor | Se ocultar o registro em edição, a confirmação permite preservar ou descartar. Recusar mantém texto, seleção e filtro anterior; aceitar encerra edição. | Se o rótulo Editando #ID e o descarte foram compreendidos |
++
++O observador deve anotar a sequência e os horários utilizados para evitar que reservas anteriores prejudiquem tarefas seguintes. Se isso ocorrer, registrar como interferência do roteiro e repetir com base limpa, sem apagar o resultado original.
++
++## Ficha por participante — preencher somente após observar
++
++| Campo | Registro |
++|---|---|
++| Código do participante e perfil | Pendente |
++| Data, ambiente e versão do pacote | Pendente |
++| Observador | Pendente |
++| Experiência com pet shop ou sistemas semelhantes | Pendente |
++
++| Tarefa | Sucesso sem ajuda / com ajuda / não concluiu | Tempo observado | Erros e ajuda prestada | Dificuldade ou fala observada |
++|---|---|---|---|---|
++| T1 | Pendente | Pendente | Pendente | Pendente |
++| T2 | Pendente | Pendente | Pendente | Pendente |
++| T3 | Pendente | Pendente | Pendente | Pendente |
++| T4 | Pendente | Pendente | Pendente | Pendente |
++| T5 | Pendente | Pendente | Pendente | Pendente |
++| T6 | Pendente | Pendente | Pendente | Pendente |
++| T7 | Pendente | Pendente | Pendente | Pendente |
++| T8 | Pendente | Pendente | Pendente | Pendente |
++
++## Síntese após a sessão
++
++| Evidência observada | Interpretação limitada à sessão | Melhoria proposta | Prioridade e justificativa | Implementada? Como foi verificada? |
++|---|---|---|---|---|
++| Pendente | Pendente | Pendente | Pendente | Pendente |
++
++Perguntas finais: em qual tarefa precisou pensar mais? O que esperava que acontecesse? Conseguiu identificar o horário reservado e o registro em edição? Registrar respostas reais, sem induzir aprovação. Uma sessão curta orienta a próxima iteração; não comprova usabilidade para todos os públicos.
+--- a/petshop_mvp/VALIDACAO_ETAPA4.md
++++ b/petshop_mvp/VALIDACAO_ETAPA4.md
+@@ -1,20 +1,47 @@
+-# Verificação da entrega reconstruída — 07/11/2026
++# Verificação da revisão DRAP — 20/11/2026
+ 
+-A pasta original foi excluída durante a execução. Antes disso, a integração de recuperação havia passado em 108 testes automatizados e quatro verificações gráficas específicas. Esses arquivos e o banco original foram excluídos; essa contagem não caracteriza a reconstrução.
++A linha de base de 07/11/2026 foi inspecionada antes das alterações. Os 52 testes automatizados dessa base passaram nesta sessão. O resultado histórico de 108 testes mencionado na documentação antiga corresponde a arquivos excluídos anteriormente e não é usado como evidência da entrega atual.
+ 
+-A versão reconstruída foi validada novamente em Linux, com bancos temporários:
++## Resultados executados nesta revisão
+ 
+-| Verificação atual | Resultado |
++| Verificação | Resultado |
+ |---|---|
+-| Testes automatizados | 52 aprovados |
+-| Fluxos gráficos | 31/31 aprovados |
+-| Apresentação | 15 slides editáveis com notas; PDF renderizado e conferido |
+-| Entrega real Resend | Pendente de chave válida e conta com destinatário autorizado |
++| Suíte automatizada atual | 78 testes aprovados: 52 da suíte anterior (adaptada ao profissional obrigatório) e 26 novos |
++| Regressão gráfica original | 31/31 verificações aprovadas |
++| Regressão gráfica da revisão | 28/28 verificações aprovadas |
++| Reprodução da seleção na versão anterior | Confirmada: busca removia destaque sem encerrar edição do ID antigo |
++| Capturas | Seis imagens reais do app, com banco temporário e dados fictícios |
++| Apresentação | 17 slides editáveis com notas; PDF renderizado e conferido, com prints reais |
++| E-mail real | Não enviado; Resend simulada |
++| Observação com pessoa usuária | Pendente; roteiro e ficha em `VALIDACAO_DE_USO.md` |
+ 
+-Cobertura: CPF válido/inválido, unicidade independente de CPF/e-mail, edição sem conflito consigo mesmo, contatos compartilhados, migração legada e rollback de conflitos, vínculos e exclusão, preço/duração preservados, status e sobreposição, concorrência, WAL/isolamento, backup, login, primeiro acesso, e-mail do usuário, solicitação de código, expiração, tentativas, reenvio, uso único, redefinições concorrentes e contrato HTTP da Resend.
++Ambiente: Linux, Python 3.14.9 e CustomTkinter 6.0.0. Dependências de verificação foram instaladas em diretório temporário; não foram incluídas no pacote. Os testes gráficos acessaram a sessão gráfica do ambiente. Não houve ensaio no Windows, migração de banco real ou teste físico de queda de energia.
+ 
+-O teste gráfico usa a Resend simulada. Verifica primeiro acesso e bloqueio, cadastros/edição/exclusão, CPF e e-mail repetidos, alertas, serviços ativos/inativos, agenda/cancelamento/consulta, histórico, backup, Minha conta, criação de usuário, saída, envio em segundo plano e acesso com a nova senha.
++## Cobertura acrescida
+ 
+-Nenhum e-mail real foi enviado. Nenhum banco real foi migrado. Não houve validação no Windows nem teste físico de falha de energia. O aplicativo reconstruído não recupera dados apagados. O relatório DOCX antigo não está nesta entrega.
++- Conclusão futura recusada sem alterar estado; reagendamento para horário passado/agora e conclusão; estados finais protegidos.
++- Tutor da realização preservado após transferência/renomeação; novo atendimento usa novo tutor; nomes do serviço e profissional preservados.
++- Entradas monetárias, frações de centavo, formato brasileiro, soma exata, armazenamento inteiro e proteção contra espelhos monetários inconsistentes.
++- Profissional obrigatório/ativo, equipe fictícia repetível sem logins, conflito do mesmo profissional com animais diferentes, paralelismo entre profissionais, proteção do mesmo animal, limite exato, meia-noite e normalização dos segundos.
++- Cancelamento libera intervalo; conclusão antecipada mantém reserva; reagendamento não conflita consigo e faz rollback quando outro profissional está ocupado; nova duração é revalidada.
++- Duas reservas simultâneas do mesmo profissional têm um único vencedor.
++- Migração repetível de IDs, duração, moeda e nomes disponíveis, indicação de origem legada, profissional desconhecido e registro dos ajustes monetários.
++- Widgets: seleção preservada, filtro com descarte aceito/recusado, preço correto, atribuição/filtro de profissional, conclusão/reagendamento, histórico de dois tutores, total em centavos e inativação/reativação.
+ 
+-As capturas de tela foram descartadas porque outra janela encobria o aplicativo. Os slides usam diagramas editáveis e evidências textuais, sem representar imagens simuladas como capturas do app.
++## Como repetir
++
++Na pasta `petshop/`, com requisitos instalados:
++
++```bash
++python -W error::ResourceWarning -m unittest discover -s tests -v
++python tests/smoke_interface.py
++python tests/smoke_revisao.py
++```
++
++Para gerar as capturas, instalar Pillow no ambiente de testes e executar, em sessão gráfica:
++
++```bash
++python tests/smoke_revisao.py --capturas ../evidencias
++```
++
++Os logs de execução estão em `evidencias/testes_automatizados.txt`, `evidencias/testes_interface.txt` e `evidencias/testes_revisao_interface.txt`. As capturas foram conferidas visualmente. Nenhum teste usa o banco do aplicativo ou dados reais; nenhum e-mail foi enviado. Validação funcional automatizada não equivale a observação de uma pessoa usando o sistema.
+--- a/petshop_mvp/apresentacao/gerar_slides.py
++++ b/petshop_mvp/apresentacao/gerar_slides.py
+@@ -44,7 +44,7 @@
+     text(s,.55,.85,12.2,.85,title,32,'ink',True)
+     if sub: text(s,.58,1.75,12,.6,sub,17,'muted')
+     shape(s,.55,7.03,12.2,.015,'green',MSO_SHAPE.RECTANGLE)
+-    text(s,.57,7.15,11,.2,'Estácio  •  Eduardo Leal e João Sérgio Araújo  •  07/11/2026',9,'muted')
++    text(s,.57,7.15,11,.2,'Estácio  •  Eduardo Leal e João Sérgio Araújo  •  20/11/2026',9,'muted')
+     text(s,12.2,7.12,.6,.25,f'{n:02}',11,'green',True)
+     s.notes_slide.notes_text_frame.text=note
+     return s
+@@ -72,28 +72,28 @@
+ 
+ s=slide('O que o MVP resolve','Escopo fechado para um balcão de atendimento local.',
+ '''Explicar o antes/depois: cadastros soltos e agenda sem vínculo dão lugar a registros relacionados e regras explícitas. O histórico mostra serviços concluídos; não comprova recebimento financeiro. A escolha por bibliotecas pequenas reduz preparação e facilita demonstração na faculdade.''')
+-card(s,.6,2.65,3.9,3.85,'01','Organizar','Tutores, animais e serviços no mesmo aplicativo.')
+-card(s,4.72,2.65,3.9,3.85,'02','Agendar','Evitar horários sobrepostos para o mesmo animal.')
++card(s,.6,2.65,3.9,3.85,'01','Organizar','Tutores, animais, serviços e profissionais no mesmo aplicativo.')
++card(s,4.72,2.65,3.9,3.85,'02','Agendar','Organizar reservas por animal e profissional, sem sobreposição.')
+ card(s,8.84,2.65,3.9,3.85,'03','Preservar','Histórico, cadastros e acesso sem apagar o banco.')
+ 
+ s=slide('Fluxo principal do atendimento','A sequência acompanha a dependência real dos dados.',
+ '''Demonstrar a ordem de preparação: entrar, cadastrar tutor, cadastrar animal, cadastrar serviços e agendar. Serviços são preparados uma vez e reutilizados. Os cinco blocos são a jornada operacional depois do login. Conclusão envia o serviço para a consulta do histórico; cancelamento preserva o registro na lista de atendimentos.''')
+-for i,(a,b) in enumerate([('Cliente','Identificar o tutor'),('Animal','Vincular ao tutor'),('Serviço','Preço e duração'),('Agendar','Escolher data/hora'),('Histórico','Consultar concluídos')]):
++for i,(a,b) in enumerate([('Cliente','Identificar o tutor'),('Animal','Vincular ao tutor'),('Preparação','Serviço e profissional'),('Agendar','Escolher data/hora'),('Histórico','Consultar concluídos')]):
+     x=.65+i*2.56
+     shape(s,x,3,2.2,1.65,'ink' if i==3 else 'green')
+     text(s,x+.12,3.3,1.96,.5,a,19,'white',True)
+     text(s,x+.12,4.02,1.96,.5,b,12,'white')
+     if i<4:arrow(s,x+2.27,3.66,.24)
+-text(s,.75,5.35,11.8,.8,'Login → preparação dos cadastros → operação diária → consulta e backup',21,'green',True)
++text(s,.75,5.35,11.8,.8,'Login → cadastros e profissionais → agenda → conclusão → histórico e backup',21,'green',True)
+ 
+ s=slide('Modelo de dados enxuto','IDs mantêm os vínculos; documentos identificam o cliente.',
+-'''As relações são cliente 1:N animal, animal 1:N atendimento e serviço 1:N atendimento. Usuário é uma entidade de acesso, distinta de cliente. Recuperação de senha pertence ao usuário, nunca ao tutor. IDs são chaves internas; CPF é chave alternativa e pode ser corrigido sem alterar as relações. A aplicação ativa foreign_keys em suas conexões.''')
+-for x,y,w,h,title,body in [( .7,2.7,3.2,1.3,'CLIENTE','ID · CPF · e-mail'),(.7,4.65,3.2,1.3,'ANIMAL','ID · tutor · espécie'),(5.05,4.65,3.2,1.3,'ATENDIMENTO','Animal · serviço · data · status'),(9.4,4.65,3.2,1.3,'SERVIÇO','Preço · duração · ativo'),(5.05,2.7,3.2,1.3,'USUÁRIO','Login · hash · e-mail'),(9.4,2.7,3.2,1.3,'RECUPERAÇÃO','Hash do código · validade')]:
++'''Cliente 1:N animal; animal, serviço e profissional têm relação 1:N com atendimento. Usuário de acesso, tutor e profissional são entidades distintas. Recuperação pertence ao usuário. O atendimento guarda preço/duração contratados e nomes históricos. Legados são indicados; profissional desconhecido não é inventado.''')
++for x,y,w,h,title,body in [( .7,2.7,3.2,1.3,'CLIENTE','ID · CPF · e-mail'),(.7,4.65,3.2,1.3,'ANIMAL','ID · tutor · espécie'),(5.05,4.65,3.2,1.3,'ATENDIMENTO','Animal · serviço · profissional'),(9.4,4.65,3.2,1.3,'SERVIÇO','Centavos · duração · ativo'),(5.05,2.7,3.2,1.3,'PROFISSIONAL','Nome · função · ativo'),(9.4,2.7,3.2,1.3,'ACESSO','Usuário e recuperação')]:
+     shape(s,x,y,w,h,'white');text(s,x+.17,y+.15,w-.34,.4,title,18,'green',True);text(s,x+.17,y+.77,w-.34,.38,body,13)
+ text(s,1.5,4.12,2,.4,'1 ↓ N',15,'orange',True)
+ text(s,4,5.05,.95,.45,'1 → N',14,'orange',True)
+ text(s,8.38,5.05,.95,.45,'N ← 1',14,'orange',True)
+-text(s,8.38,3.05,.95,.45,'1 → 1',14,'orange',True)
++text(s,6.1,4.12,2,.4,'1 ↓ N',15,'orange',True)
+ 
+ s=slide('CPF e e-mail: unicidade independente','Nome, telefone e endereço podem ser iguais, inclusive todos juntos.',
+ '''RN13 atual substitui a antiga comparação do conjunto inteiro. CPF obrigatório em novos cadastros, validado pelo algoritmo e guardado como texto sem máscara. E-mail opcional e único quando informado, normalizado em minúsculas. UNIQUE(cpf,email) não resolveria: são duas restrições independentes. A validação de CPF não prova titularidade nem situação cadastral.''')
+@@ -108,13 +108,13 @@
+ card(s,8.85,2.65,3.85,3.85,'↻','Banco existente','Preservar clientes, animais e IDs; regularizar CPF pendente.')
+ 
+ s=slide('Agenda com estados e valores preservados','Mudar o catálogo não reescreve o atendimento já combinado.',
+-'''Valor e duração são copiados na criação. Ao reagendar com o mesmo serviço, ambos são preservados. Ao trocar serviço, o app copia os valores do novo catálogo. A duração antiga nunca armazenada é preenchida com a duração atual durante a migração. Só agendados podem ser alterados, concluídos ou cancelados. O código atual ainda permite concluir uma data futura: regra de conclusão é uma melhoria de negócio identificada, não implementada nesta entrega.''')
++'''Valor e duração são copiados na criação. Ao reagendar com o mesmo serviço, ambos são preservados. Ao trocar serviço, o app copia os valores do novo catálogo. A duração antiga nunca armazenada é preenchida com a duração atual durante a migração. Só agendados podem ser alterados, concluídos ou cancelados. A revisão permite corrigir um agendado para o horário passado/agora, com confirmação, e recusa concluir futuro. Mesmo concluído antes do fim, o intervalo previsto permanece reservado. O tutor e o profissional são congelados na conclusão; a descrição contratada é preservada.''')
+ shape(s,.8,2.9,3.2,1.1,'green');text(s,1.04,3.21,2.7,.5,'AGENDADO',25,'white',True)
+ arrow(s,4.4,3.32,.65)
+ shape(s,5.4,2.9,3.2,1.1,'ink');text(s,5.63,3.21,2.75,.5,'CONCLUÍDO',25,'white',True)
+ shape(s,9.1,2.9,3.35,1.1,'red');text(s,9.31,3.21,2.9,.5,'CANCELADO',25,'white',True)
+ text(s,8.6,4.17,3.8,.45,'Cancelamento exige motivo',15,'red')
+-text(s,.9,5.05,11.5,1.3,'Data futura + serviço ativo + verificação de sobreposição\nPreço e duração guardados no próprio atendimento',22,'green',True)
++text(s,.9,5.05,11.5,1.3,'Reserva por animal e profissional até o fim previsto\nReagendar para o horário realizado; concluir após o início',22,'green',True)
+ text(s,1,4.23,6.5,.45,'Agendado → cancelado também é permitido',15,'muted')
+ 
+ s=slide('Arquitetura simples, responsabilidades claras','A interface orienta; a camada de dados revalida antes de gravar.',
+@@ -130,13 +130,11 @@
+     card(s,.7+i*4.15,2.65,3.8,3.4,str(i+1),a,b)
+ text(s,.85,6.35,11.8,.45,'10 min de validade  •  5 tentativas  •  uso único  •  reenvio após 60 s',19,'green',True)
+ 
+-s=slide('Resend em modo de teste','Integração implementada; entrega real depende da configuração local.',
+-'''Não afirmar que houve envio real: todos os testes do provedor foram simulados porque não foi fornecida API key. O Gmail do autor é destinatário de recuperação do administrador e precisa ser o e-mail cadastrado na conta Resend. Não pode ser usado como remetente Gmail autenticado pela Resend. Remetente de teste é onboarding@resend.dev. Para outros destinatários, verificar domínio. Fontes: https://resend.com/docs/knowledge-base/403-error-resend-dev-domain e https://resend.com/docs/api-reference/emails/send-email .''')
+-shape(s,.75,2.65,7.8,3.7,'ink')
+-text(s,1.05,2.98,7.1,.5,'Configuração para demonstração',23,'white',True)
+-text(s,1.05,3.95,7.1,1.9,'Remetente: onboarding@resend.dev\nDestino: e-mail da própria conta Resend\nChave: resend.ini local ou variável de ambiente',20,'white')
+-text(s,9,2.95,3.6,.8,'SEM CHAVE NO CÓDIGO',20,'green',True)
+-text(s,9,4,3.55,2,'Timeout no envio.\nInterface em segundo plano.\nBanco sem transação aberta durante HTTP.',18,'muted')
++s=slide('Cada profissional tem sua agenda','O intervalo é reservado pela duração contratada do serviço.',
++'''A captura é do aplicativo real com dados fictícios, gerada pelo teste gráfico da revisão. Uma reserva de 10h a 11h impede outro atendimento do mesmo profissional às 10h30; o próximo pode iniciar às 11h. Outro profissional pode atender outro animal em paralelo. Concluir cedo mantém a reserva; cancelar libera. Ana Souza, Bruno Lima e Carla Santos são exemplos; função é descritiva e não valida especialidade. A integração Resend continua implementada e testada com provedor simulado, sem envio real.''')
++s.shapes.add_picture(str(BASE/'evidencias'/'agenda_profissionais.png'), Inches(.65), Inches(2.35), width=Inches(7.45))
++text(s,8.55,2.65,4.1,.8,'PROFISSIONAL + INTERVALO',20,'green',True)
++text(s,8.55,3.6,4.05,2.85,'Mesma pessoa: sem sobreposição.\nPessoas diferentes: paralelo permitido.\nFim previsto visível.\nFiltro por profissional.',19,'muted')
+ 
+ s=slide('Transações, integridade e backup','Proteções concretas para os dados do MVP.',
+ '''Atomicidade: commit ou rollback. Consistência: UNIQUE, vínculos e regras na camada de dados. Isolamento: escritas serializadas com BEGIN IMMEDIATE. Durabilidade: WAL e synchronous FULL, sem alegar teste físico de queda de energia. O backup usa Connection.backup, não copia só o .db com WAL ativo. SQL externo não garante todas as regras de negócio, como data futura e sobreposição.''')
+@@ -146,30 +144,42 @@
+ text(s,.9,6.3,11.6,.5,'Backup pela API SQLite, inclusive com o aplicativo aberto.',21,'green',True)
+ 
+ s=slide('O que foi verificado','Testes temporários: nenhum e-mail real enviado e nenhum banco real migrado.',
+-'''Evidência nesta execução: Na reconstrução: 52 testes automatizados passaram; 31 verificações gráficas passaram. A versão anterior tinha 108 testes antes da exclusão da pasta. A reconstrução foi verificada novamente; as contagens desta tela se referem à entrega atual. O envio real depende de API key e destinatário autorizado, e ainda não foi validado. Não alegar resultado no Windows ou no computador de apresentação.''')
+-card(s,.7,2.7,3.8,3.8,'52','Automatizados','Identidade, transações, migração, agenda, backup e recuperação.')
+-card(s,4.85,2.7,3.8,3.8,'31','Fluxos gráficos','Cadastros, agenda, histórico, backup, login e recuperação.')
++'''Evidência nesta execução: Na revisão de 20/11/2026: 78 testes automatizados passaram; 59 verificações gráficas passaram (31 anteriores e 28 novas). A linha de base tinha 52 testes, também executados antes das mudanças. As contagens desta tela são da revisão atual. Capturas são reais com dados fictícios; não representam observação de uma pessoa usando o sistema. O envio real depende de API key e destinatário autorizado, e ainda não foi validado. Não alegar resultado no Windows ou no computador de apresentação.''')
++card(s,.7,2.7,3.8,3.8,'78','Automatizados','Incluem tutor histórico, centavos, conclusão e reservas concorrentes.')
++card(s,4.85,2.7,3.8,3.8,'59','Fluxos gráficos','31 de regressão + 28 da revisão, nos widgets reais do app.')
+ card(s,9,2.7,3.65,3.8,'API','Provedor simulado','Contrato HTTP e falhas testados; entrega na caixa de entrada pendente.','orange')
+ 
+ s=slide('Roteiro para a demonstração ao vivo','Preparar os serviços antes de iniciar a jornada do cliente.',
+-'''Tempo sugerido 3 a 4 minutos. Usar dados de demonstração e banco separado. Criar um cliente com CPF válido de exemplo; não usar dados reais de terceiros. Repetir CPF com outro e-mail e repetir e-mail com outro CPF para mostrar independência. Para recuperar senha de verdade, configurar Resend antes e garantir que o destinatário é o e-mail da conta Resend. Sem chave, mostrar a tela e explicar a limitação sem fingir entrega.''')
+-for i,(a,b) in enumerate([('Entrar','Mostrar login e Minha conta'),('Cadastrar','Tutor → animal → serviço'),('Validar','CPF e e-mail repetidos recusados'),('Agendar','Demonstrar conflito do mesmo animal'),('Concluir','Consultar o histórico'),('Proteger','Backup e recuperação de acesso')]):
++'''Tempo sugerido 3 a 4 minutos. Usar dados de demonstração e banco separado. Criar um cliente com CPF válido de exemplo; não usar dados reais de terceiros. Repetir CPF com outro e-mail e repetir e-mail com outro CPF para mostrar independência. Escolher profissional, tentar conflito e reagendar para agora antes de concluir. Mostrar o histórico com o tutor original após uma transferência e um novo atendimento com o novo tutor. Para recuperar senha de verdade, configurar Resend antes e garantir que o destinatário é o e-mail da conta Resend. Sem chave, mostrar a tela e explicar a limitação sem fingir entrega.''')
++for i,(a,b) in enumerate([('Entrar','Mostrar login e Minha conta'),('Preparar','Tutor → animal → serviço → profissional'),('Validar','CPF e e-mail repetidos recusados'),('Agendar','Demonstrar conflito do profissional'),('Realizar','Reagendar para agora → concluir → histórico'),('Proteger','Backup e recuperação de acesso')]):
+     x=.75+(i%2)*6.35;y=2.6+(i//2)*1.28
+     shape(s,x,y,.5,.5,'green');text(s,x+.13,y+.08,.3,.3,str(i+1),15,'white',True)
+     text(s,x+.7,y,5.2,.42,a,21,'green',True);text(s,x+.7,y+.55,5.2,.4,b,16)
+ 
+-s=slide('O fluxo faz sentido para a proposta?','Sim, para gestão acadêmica local com operação de balcão.',
+-'''A ordem de dependências é coerente. Login é acesso interno; clientes são tutores; animais ligam a agenda ao tutor; serviços fornecem preço e duração. As restrições melhoram a demonstração de integridade. Limites: capacidade por funcionário não é modelada, conclusão pode ocorrer antes do horário, histórico deriva nomes/tutor atuais por JOIN, total concluído não equivale a pagamento. Resend e chave no desktop são aceitáveis em demonstração controlada; produto distribuído pede backend para guardar a chave e limitar abuso.''')
+-card(s,.7,2.65,5.9,3.85,'✓','Coerência','Jornada curta, relações explícitas, regras na gravação e histórico preservado.')
+-card(s,6.85,2.65,5.8,3.85,'!','Limites do MVP','Sem capacidade por funcionário, controle de pagamentos ou administração por perfis.','orange')
++s=slide('O tutor da realização permanece no histórico','Transferir o animal não reescreve o atendimento concluído.',
++'''Captura real do app com dados fictícios. Thor teve atendimento com Maria e depois foi transferido para Carlos. O antigo continua com Maria; uma nova realização usa Carlos. O nome do tutor é congelado ao concluir. A descrição e o valor do serviço são os contratados; nome do profissional da realização também é preservado. Dados antigos sem snapshot são identificados como migrados, com os nomes disponíveis naquele momento. Não se afirma recuperar o passado que não foi armazenado.''')
++s.shapes.add_picture(str(BASE/'evidencias'/'historico_tutores.png'), Inches(.65), Inches(2.35), width=Inches(7.45))
++text(s,8.55,2.65,4.05,.8,'CADA REALIZAÇÃO TEM SEU TUTOR',20,'green',True)
++text(s,8.55,3.9,4.05,2.5,'Atendimento antigo: Maria.\nAnimal transferido para Carlos.\nNova realização: Carlos.\nTotal soma centavos inteiros.',19,'muted')
+ 
+-s=slide('Próxima evolução: regras antes de novas telas','Melhorias escolhidas pelo impacto na rotina e pelo custo de implementação.',
+-'''Priorizar: (1) decidir quando pode concluir e o significado de faturamento; (2) decidir se a agenda é de um funcionário ou só do animal; (3) se histórico precisa conservar tutor/descrição da época, salvar snapshots; (4) perfis de acesso se houver administrador e atendente; (5) backend para a chave Resend em implantação distribuída. Não é preciso trocar de stack para a apresentação. Relatório DOCX original permanece pendente de revisão e participação individual não foi comprovada.''')
+-for i,(a,b) in enumerate([('Agora','Validar instalação, configurar Resend e ensaiar com dados fictícios.'),('Próxima iteração','Definir conclusão por horário, capacidade da agenda e valor recebido.'),('Se virar produto','Perfis de acesso, histórico estável e envio de e-mails por backend.')]):
+-    y=2.65+i*1.25;shape(s,.8,y,2.8,.8,'green' if i<2 else 'ink');text(s,.98,y+.2,2.45,.4,a,19,'white',True);text(s,4,y+.08,8.2,.9,b,21)
+-text(s,.85,6.5,11.6,.3,'Código simples + regras explícitas + evidências de teste',17,'green',True)
++s=slide('Evolução comprovável por iterações','Linha de base, retorno recebido, mudança e verificação.',
++'''Não há histórico Git nem evidência de entrevistas ou sprints antigos. A entrega de 07/11 é uma linha de base documentada e está preservada no ZIP original. Em 20/11 foram executados seus 52 testes. O solicitante pediu as cinco correções desta revisão. A mudança foi implementada e verificada com 78 testes e 59 checagens gráficas. O solicitante confirmou que nunca houve uso observado por uma pessoa e pediu execução do aplicativo e prints; esses prints são evidência funcional, não estudo humano.''')
++for i,(a,b) in enumerate([('Linha de base','ZIP original preservado; 52 testes executados antes das mudanças.'),('Retorno recebido','Reagendamento, tutor histórico, seleção, centavos e agenda por profissional.'),('Revisão validada','78 testes + 59 checagens gráficas; capturas reais com dados fictícios.')]):
++    y=2.65+i*1.25;shape(s,.8,y,2.8,.8,'green' if i<2 else 'ink');text(s,.98,y+.2,2.45,.4,a,19,'white',True);text(s,4,y+.08,8.2,.9,b,20)
++text(s,.85,6.5,11.6,.3,'Registro detalhado: EVOLUCAO_POR_ITERACOES.md',16,'green',True)
+ 
+-r.core_properties.title='Sistema para Pet Shop — apresentação atualizada'
++s=slide('Necessidade → regra → tela → teste','A matriz conecta o pedido à evidência de aceitação.',
++'''A matriz completa contém 15 requisitos com critérios observáveis, telas e nomes dos testes. Exemplos deste slide são RF10, RF12, RF08 e RF05. A numeração é da revisão e não inventa uma especificação antiga. O documento se chama REQUISITOS_E_ACEITACAO.md.''')
++for i,(a,b) in enumerate([('Conclusão válida','Futuro recusado; reagendar agora permitido → Atendimentos → testes de conclusão.'),('Tutor preservado','Transferência não reescreve a realização → Histórico → teste com dois tutores.'),('Agenda da equipe','Intervalo completo sem conflito → Agenda → teste concorrente com dois animais.'),('Valores em centavos','0,10 + 0,20 = 0,30 → Serviços/Histórico → teste de soma inteira.')]):
++    y=2.55+i*1.05;shape(s,.75,y,3.5,.75,'green');text(s,.93,y+.18,3.15,.4,a,19,'white',True);text(s,4.5,y+.04,7.9,.8,b,18)
++text(s,.85,6.8,11.6,.25,'Matriz completa: REQUISITOS_E_ACEITACAO.md',14,'green',True)
++
++s=slide('Demonstração funcional e próxima validação','O app foi executado; observação com uma pessoa ainda não foi realizada.',
++'''O solicitante confirmou que o sistema não teve esse uso observado e autorizou execução e prints. As verificações gráficas exercitam o aplicativo real, com banco temporário e confirmações simuladas. Não são avaliação humana de entendimento, satisfação ou dificuldade. O roteiro de VALIDACAO_DE_USO.md propõe oito tarefas, ficha por participante e registro de problemas/melhorias; todos os campos da sessão permanecem pendentes. Não inventar resultados.''')
++card(s,.7,2.65,5.9,3.85,'✓','Executado','Cadastros, agenda, cancelamento, conclusão, histórico e prints do aplicativo.')
++card(s,6.85,2.65,5.8,3.85,'→','Roteiro disponível','Observar uma pessoa; registrar tarefas, dificuldades e retorno para outra iteração.','orange')
++
++r.core_properties.title='Sistema para Pet Shop — revisão DRAP 20/11/2026'
+ r.core_properties.subject='Desenvolvimento Rápido de Aplicações em Python'
+ r.core_properties.author='Eduardo Guther Pontes Leal e João Sérgio Cavalcante Marques Araújo'
+ r.core_properties.keywords='Python, CustomTkinter, SQLite, CPF, Resend, recuperação de senha'
+--- /dev/null
++++ b/petshop_mvp/evidencias/README.md
+@@ -0,0 +1,18 @@
++# Evidências funcionais — 20/11/2026
++
++Aplicativo real executado com banco temporário e dados fictícios. Os testes acionam os widgets e simulam as respostas das confirmações. Não houve participante humano nem envio real de e-mail. As imagens mostram o estado final dos cenários de demonstração e foram conferidas visualmente.
++
++| Arquivo | O que documenta |
++|---|---|
++| [cadastro_cliente.png](cadastro_cliente.png) | Formulário de tutor e identificação da edição |
++| [servicos_centavos.png](servicos_centavos.png) | Serviço de R$ 19,95, com edição e exibição de centavos |
++| [profissionais.png](profissionais.png) | Equipe fictícia inicial e Diego, cadastrado/editado no teste gráfico |
++| [agenda_profissionais.png](agenda_profissionais.png) | Reservas agendadas por profissional, com início e fim previsto |
++| [historico_tutores.png](historico_tutores.png) | Thor com Maria na realização anterior e Carlos na posterior; soma em centavos |
++| [cancelamento.png](cancelamento.png) | Atendimento cancelado preservado em consulta, com estado final na lista |
++| [testes_automatizados.txt](testes_automatizados.txt) | 78 testes aprovados, incluindo migração e concorrência |
++| [testes_interface.txt](testes_interface.txt) | 31 verificações da regressão gráfica original |
++| [testes_revisao_interface.txt](testes_revisao_interface.txt) | 28 verificações gráficas da revisão, incluindo cancelamento |
++| [revisao_2026-11-20.patch](revisao_2026-11-20.patch) | Alterações de texto em relação ao ZIP original preservado |
++
++A transferência de Thor é uma alteração de exemplo feita durante o teste; o primeiro atendimento concluído conserva Maria e o seguinte conserva Carlos. O filtro e a ordem das capturas não indicam ordem de execução das tarefas. Os logs registram as verificações efetivamente realizadas. Para repetir, siga `../VALIDACAO_ETAPA4.md`.
+--- a/petshop_mvp/petshop/README.md
++++ b/petshop_mvp/petshop/README.md
+@@ -1,6 +1,8 @@
+ # Sistema para Pet Shop
+ 
+-MVP desktop de Desenvolvimento Rápido de Aplicações em Python. Usa Python, CustomTkinter e SQLite para gerenciar clientes, animais, serviços, agenda e histórico.
++MVP desktop de Desenvolvimento Rápido de Aplicações em Python. Usa Python, CustomTkinter e SQLite para gerenciar clientes, animais, serviços, profissionais, agenda e histórico.
++
++**Revisão DRAP de 20/11/2026:** conclusão após o início, reagendamento para o horário realizado, tutor histórico, agenda por profissional e valores em centavos. Veja [requisitos e aceitação](../REQUISITOS_E_ACEITACAO.md), [evolução comprovável](../EVOLUCAO_POR_ITERACOES.md) e [roteiro de validação com usuário](../VALIDACAO_DE_USO.md).
+ 
+ **Entrega reconstruída em 07/11/2026:** a pasta original foi excluída durante o desenvolvimento. O código foi reconstruído com as funções e regras revisadas e testado novamente. O banco antigo e os documentos binários excluídos não foram recuperados. O primeiro uso cria um banco novo, sem usuários ou dados reais.
+ 
+@@ -19,18 +21,19 @@
+ 
+ O banco `petshop.db` fica ao lado de `database.py`. O primeiro acesso cria usuário, senha e e-mail de recuperação. O e-mail sugerido é `nixxude@gmail.com`; revise antes de salvar. Não há senha padrão. A senha exige pelo menos seis caracteres, letras e números e é guardada com PBKDF2-SHA256 e sal. Cinco falhas de login bloqueiam a tela por 30 segundos.
+ 
+-Os dados fictícios podem ser oferecidos pelo app ou carregados com `python popular_demo.py` em um banco vazio. Essa carga não cria usuários nem envia e-mails.
++Os dados fictícios podem ser oferecidos pelo app ou carregados com `python popular_demo.py` em um banco vazio. Essa carga não cria usuários nem envia e-mails. Na aba **Profissionais**, o botão **Adicionar equipe fictícia** inclui Ana Souza, Bruno Lima e Carla Santos, inclusive em um banco que já tenha cadastros. É seguro repetir: nomes existentes são preservados. As funções são descritivas; não há restrição de especialidade por serviço.
+ 
+ ## Jornada do aplicativo
+ 
+ 1. **Clientes:** nome, telefone com DDD e CPF são obrigatórios para novos clientes. E-mail e endereço são opcionais. Clique na linha para editar. A busca aceita nome, telefone, CPF com máscara e e-mail.
+ 2. **Animais:** informe tutor, nome e espécie. Raça e observações são opcionais.
+-3. **Serviços:** prepare nome, preço e duração. Use inativação em vez de exclusão.
+-4. **Atendimentos:** selecione animal, serviço ativo e data futura em `dd/mm/aaaa hh:mm`. Só agendados podem ser alterados, cancelados ou concluídos. Cancelamento exige motivo.
+-5. **Histórico:** mostra serviços concluídos e o total desses valores. Não controla pagamentos.
+-6. **Backup:** no cabeçalho, escolha um arquivo novo para obter uma cópia consistente do SQLite, inclusive com WAL e o app aberto.
++3. **Serviços:** prepare nome, preço e duração. Preços aceitam vírgula ou ponto decimal, sem separador de milhar, com até duas casas (ex.: `50,05`). Frações de centavo são recusadas. Use inativação em vez de exclusão.
++4. **Profissionais:** cadastre nome e função ou adicione a equipe fictícia. Inativar impede novas reservas e mantém os registros existentes. Profissional é quem executa o serviço; usuário é quem entra no sistema.
++5. **Atendimentos:** selecione animal, serviço e profissional ativos e data futura em `dd/mm/aaaa hh:mm`. Só agendados podem ser editados, cancelados ou concluídos. Na edição, é permitido corrigir o horário para o passado ou usar **Reagendar para agora**, com confirmação. Conclusão exige que o início tenha chegado. Cancelamento exige motivo.
++6. **Histórico:** conserva o nome do tutor na conclusão, a descrição contratada e o profissional da realização. Mostra o total de serviços concluídos; não controla pagamentos.
++7. **Backup:** no cabeçalho, escolha um arquivo novo para obter uma cópia consistente do SQLite, inclusive com WAL e o app aberto.
+ 
+-Alterações mostram antes/depois e pedem confirmação. Exclusões e mudanças de estado também pedem confirmação. Cliente com animais e animal com atendimentos não podem ser excluídos. Validações recusadas preservam os dados do formulário.
++Alterações mostram antes/depois e pedem confirmação. Exclusões e mudanças de estado também pedem confirmação. Cliente com animais e animal com atendimentos não podem ser excluídos. Validações recusadas preservam os dados do formulário. O rótulo **Editando #ID** identifica o registro. Atualizar uma lista preserva seleção e edição enquanto o registro continuar visível. Se um filtro o ocultar, a edição é encerrada; havendo alterações não salvas, o descarte exige confirmação e pode ser recusado.
+ 
+ ## CPF e e-mail únicos
+ 
+@@ -78,16 +81,23 @@
+ 
+ Escritas usam `BEGIN IMMEDIATE`, commit e rollback. Conexões ativam `foreign_keys`, `synchronous=FULL` e WAL. A sobreposição é conferida dentro da transação. SQL externo protege CPF/e-mail únicos, vínculos quando `foreign_keys` está ativo, duração positiva inteira, status, indicador ativo e cancelamento com motivo; o algoritmo completo de CPF, datas e sobreposição são aplicados pela API Python.
+ 
+-Animais distintos podem ser atendidos ao mesmo tempo. Não há capacidade por funcionário, pagamentos ou perfis de administrador/atendente. A conclusão exige estado agendado, mas ainda pode ocorrer antes da data prevista. A análise detalhada e as próximas decisões estão em `../ANALISE_DO_FLUXO.md`.
++A agenda verifica o intervalo completo `[início, início + duração)`, tanto do animal quanto do profissional, dentro da mesma transação. Animais diferentes podem ser atendidos ao mesmo tempo por profissionais diferentes. O próximo atendimento pode começar exatamente no fim do anterior. Concluir antes do fim estimado mantém a reserva até esse fim; cancelar libera o intervalo. O filtro de profissionais inclui inativos para consulta e a tabela mostra o fim previsto. Não há jornada de trabalho, pausa, férias, controle de especialidade, pagamentos ou perfis de administrador/atendente.
++
++Os campos `preco_centavos` e `valor_centavos` são inteiros e são a fonte dos cálculos e totais. `preco` e `valor` permanecem como espelhos por compatibilidade com o banco anterior, com triggers que exigem correspondência. A interface usa `R$ 50,05`. Valores novos com frações de centavo são recusados.
++
++Na migração de bancos anteriores, valores com frações de centavo são arredondados por `ROUND_HALF_UP` e os valores anteriores são registrados em `ajuste_monetario_migracao`. Valores que não gerem centavos positivos interrompem essa etapa com o ID para revisão. Os nomes disponíveis na migração são conservados e exibidos como **Legado: dados migrados**; não se pode recuperar automaticamente quem era o tutor em uma data anterior. Profissionais antigos desconhecidos ficam sem atribuição: é necessário escolher um profissional antes de concluir um agendado legado. Nenhum vínculo fictício é atribuído automaticamente. A revisão de moeda, profissionais e histórico é uma etapa transacional; as migrações anteriores continuam em etapas separadas.
++
++O tutor é atualizado enquanto o atendimento está agendado e congelado na conclusão, junto do nome do profissional. Assim, transferir o animal depois não altera o atendimento realizado; uma nova realização usa o novo tutor. A descrição e o valor do serviço são os contratados no agendamento; reagendar com o mesmo serviço os conserva. A análise detalhada está em `../ANALISE_DO_FLUXO.md`.
+ 
+ ## Verificação
+ 
+ ```bash
+ python -W error::ResourceWarning -m unittest discover -s tests -v
+ python tests/smoke_interface.py
++python tests/smoke_revisao.py
+ ```
+ 
+-A suíte reconstruída tem 52 testes automatizados, com validação, restrições, migração, rollback, concorrência, backup e recuperação. O teste gráfico tem 31 verificações e requer ambiente gráfico. Usa bancos temporários e Resend simulada. Não usa o banco do aplicativo nem envia e-mails reais.
++A revisão tem 78 testes automatizados e 59 verificações gráficas (31 de regressão e 28 novas). Inclui migração, histórico por tutor, centavos, conclusão, reagendamento e conflito de profissionais em concorrência. Os testes gráficos requerem ambiente gráfico. Usam bancos temporários e Resend simulada; não usam o banco do aplicativo nem enviam e-mails reais. Capturas reais com dados fictícios estão em `../evidencias/`. Elas documentam a interface; a observação de uma pessoa usando o sistema segue pendente até aplicação do roteiro.
+ 
+ ## Arquivos
+ 
+--- a/petshop_mvp/petshop/app.py
++++ b/petshop_mvp/petshop/app.py
+@@ -24,8 +24,14 @@
+         for chave,titulo,largura in colunas:
+             self.heading(chave,text=titulo);self.column(chave,width=largura,anchor='w')
+     def preencher(self,linhas):
+-        self.delete(*self.get_children())
+-        for linha in linhas: self.insert('','end',iid=str(linha[0]),values=linha)
++        ids={str(linha[0]) for linha in linhas}
++        for id_ in self.get_children():
++            if id_ not in ids: self.delete(id_)
++        for posicao,linha in enumerate(linhas):
++            id_=str(linha[0])
++            if self.exists(id_): self.item(id_,values=linha)
++            else: self.insert('','end',iid=id_,values=linha)
++            self.move(id_,'',posicao)
+     def selecionado(self):
+         sel=self.selection();return int(sel[0]) if sel else None
+ 
+@@ -35,7 +41,8 @@
+         super().__init__();ctk.set_appearance_mode('light')
+         self.usuario=usuario;self.sair_solicitado=False;self._alerta_job=None
+         self.title('Sistema para Pet Shop');self.geometry('1260x760');self.minsize(1000,650)
+-        self.sel={k:None for k in ('cliente','animal','servico','atendimento')}
++        self.sel={k:None for k in ('cliente','animal','servico','profissional','atendimento')}
++        self._originais_form={};self._filtros_aplicados={}
+         topo=ctk.CTkFrame(self,fg_color='#18302F');topo.pack(fill='x')
+         ctk.CTkLabel(topo,text='Pet Shop — Gestão de Atendimentos',font=('Arial',23,'bold'),text_color='white').pack(side='left',padx=18,pady=14)
+         ctk.CTkButton(topo,text='Como usar',command=self.mostrar_ajuda,fg_color=COR_DESTAQUE).pack(side='right',padx=12)
+@@ -46,9 +53,9 @@
+                 ctk.CTkButton(acoes,text=titulo,width=115,command=comando,fg_color=COR_PRIMARIA).pack(side='right',padx=5,pady=6)
+         ctk.CTkButton(acoes,text='Backup',width=100,command=self.salvar_backup,fg_color=COR_PRIMARIA).pack(side='right',padx=5,pady=6)
+         self.abas=ctk.CTkTabview(self);self.abas.pack(fill='both',expand=True,padx=12,pady=10)
+-        for n in ('Clientes','Animais','Serviços','Atendimentos','Histórico'): self.abas.add(n)
+-        self.forms={};self.tables={};self.buscas={};self.save_buttons={};self.action_buttons={}
+-        self._montar_clientes();self._montar_animais();self._montar_servicos();self._montar_atendimentos();self._montar_historico()
++        for n in ('Clientes','Animais','Serviços','Profissionais','Atendimentos','Histórico'): self.abas.add(n)
++        self.forms={};self.tables={};self.buscas={};self.save_buttons={};self.action_buttons={};self.modos={}
++        self._montar_clientes();self._montar_animais();self._montar_servicos();self._montar_profissionais();self._montar_atendimentos();self._montar_historico()
+         self.atualizar_tudo()
+         self.after(400,self.oferecer_demo)
+ 
+@@ -57,6 +64,8 @@
+         ctk.CTkLabel(aba,text=instrucao,wraplength=1100,justify='left',anchor='w').pack(fill='x',padx=10,pady=8)
+         corpo=ctk.CTkFrame(aba);corpo.pack(fill='both',expand=True)
+         form=ctk.CTkScrollableFrame(corpo,width=250);form.pack(side='left',fill='y',padx=6,pady=6)
++        modo=ctk.CTkLabel(form,text='Novo cadastro',text_color=COR_PRIMARIA)
++        modo.pack(anchor='w',padx=5);self.modos[chave]=modo
+         entradas={}
+         for key,titulo,opcoes in campos:
+             ctk.CTkLabel(form,text=titulo).pack(anchor='w',padx=5,pady=(7,0))
+@@ -67,7 +76,10 @@
+         ctk.CTkButton(form,text='Novo / limpar',command=lambda:self.limpar_form(chave),fg_color='#627471').pack(fill='x',padx=5,pady=4)
+         lista=ctk.CTkFrame(corpo);lista.pack(side='left',fill='both',expand=True,padx=6,pady=6)
+         busca=ctk.CTkEntry(lista,placeholder_text='Pesquisar');busca.pack(fill='x',padx=8,pady=8)
+-        tabela=Tabela(lista,colunas);tabela.pack(fill='both',expand=True,padx=8,pady=6)
++        grade=ctk.CTkFrame(lista);grade.pack(fill='both',expand=True,padx=8,pady=6)
++        tabela=Tabela(grade,colunas);tabela.pack(side='left',fill='both',expand=True)
++        vertical=ttk.Scrollbar(grade,orient='vertical',command=tabela.yview);vertical.pack(side='right',fill='y')
++        tabela.configure(yscrollcommand=vertical.set)
+         barra=ttk.Scrollbar(lista,orient='horizontal',command=tabela.xview);barra.pack(fill='x',padx=8)
+         tabela.configure(xscrollcommand=barra.set)
+         self.forms[chave]=entradas;self.tables[chave]=tabela;self.buscas[chave]=busca;self.save_buttons[chave]=botao
+@@ -103,21 +115,34 @@
+         self._acao(form,'servico','Ativar / inativar',self.alternar_servico)
+ 
+     def _montar_atendimentos(self):
+-        form,lista=self._aba('Atendimentos','atendimento','4. Agende uma data futura. Atendimentos concluídos ou cancelados ficam somente para consulta.',
+-            [('id_animal','Animal *',['—']),('id_servico','Serviço ativo *',['—']),('data_hora','Data/hora * (dd/mm/aaaa hh:mm)',None)],
+-            [('id','ID',45),('data','Data/hora',150),('animal','Animal',150),('tutor','Tutor',170),('servico','Serviço',170),('status','Status',100),('valor','Valor',90)],self.salvar_atendimento)
++        form,lista=self._aba('Atendimentos','atendimento','5. Escolha profissional, animal e serviço. Novos agendamentos exigem futuro; na edição, é possível corrigir o horário realizado. Só conclua após o início.',
++            [('id_animal','Animal *',['—']),('id_servico','Serviço ativo *',['—']),('id_profissional','Profissional ativo *',['—']),('data_hora','Data/hora * (dd/mm/aaaa hh:mm)',None)],
++            [('id','ID',45),('data','Início',145),('fim','Fim previsto',145),('prof','Profissional',160),('animal','Animal',130),('tutor','Tutor',160),('servico','Serviço',160),('status','Status',100),('valor','Valor',110)],self.salvar_atendimento)
++        self._acao(form,'atendimento','Reagendar para agora',self.reagendar_agora)
+         self._acao(form,'atendimento','Concluir selecionado',self.concluir_atendimento)
+         self._acao(form,'atendimento','Cancelar selecionado',self.cancelar_atendimento)
+         self.status_filtro=ctk.CTkOptionMenu(lista,values=['Todos','agendado','concluido','cancelado'],command=lambda _:self.atualizar_lista('atendimento'))
+         self.status_filtro.pack(fill='x',padx=8,pady=6)
++        self.profissional_filtro=ctk.CTkOptionMenu(lista,values=['Todos os profissionais'],command=lambda _:self.atualizar_lista('atendimento'))
++        self.profissional_filtro.pack(fill='x',padx=8,pady=6)
++
++    def _montar_profissionais(self):
++        form,_=self._aba('Profissionais','profissional','4. Cadastre quem executa os serviços. Cada profissional tem uma agenda; a função é descritiva. Inativar impede novas reservas e preserva as existentes.',
++            [('nome','Nome *',None),('funcao','Função *',None)],
++            [('id','ID',45),('nome','Profissional',240),('funcao','Função',240),('ativo','Situação',120)],self.salvar_profissional)
++        self._acao(form,'profissional','Ativar / inativar',self.alternar_profissional)
++        ctk.CTkButton(form,text='Adicionar equipe fictícia',command=self.adicionar_equipe_demo,fg_color=COR_PRIMARIA).pack(fill='x',padx=5,pady=10)
+ 
+     def _montar_historico(self):
+         aba=self.abas.tab('Histórico')
+         ctk.CTkLabel(aba,text='Serviços concluídos. O total representa valores dos serviços, sem controle de pagamento.').pack(pady=8)
+-        self.h_busca=ctk.CTkEntry(aba,placeholder_text='Pesquisar animal, tutor ou serviço');self.h_busca.pack(fill='x',padx=10,pady=8)
++        self.h_busca=ctk.CTkEntry(aba,placeholder_text='Pesquisar animal, tutor, serviço ou profissional');self.h_busca.pack(fill='x',padx=10,pady=8)
+         self.h_busca.bind('<KeyRelease>',lambda _:self.atualizar_historico())
+-        self.t_hist=Tabela(aba,[('id','ID',45),('data','Data',170),('animal','Animal',160),('tutor','Tutor',190),('servico','Serviço',200),('valor','Valor',100)])
+-        self.t_hist.pack(fill='both',expand=True,padx=10,pady=6)
++        grade=ctk.CTkFrame(aba);grade.pack(fill='both',expand=True,padx=10,pady=6)
++        self.t_hist=Tabela(grade,[('id','ID',45),('data','Data',150),('animal','Animal',130),('tutor','Tutor na realização',180),('servico','Serviço',170),('prof','Profissional',160),('valor','Valor',110),('origem','Registro',150)])
++        self.t_hist.pack(side='left',fill='both',expand=True)
++        vertical=ttk.Scrollbar(grade,orient='vertical',command=self.t_hist.yview);vertical.pack(side='right',fill='y');self.t_hist.configure(yscrollcommand=vertical.set)
++        horizontal=ttk.Scrollbar(aba,orient='horizontal',command=self.t_hist.xview);horizontal.pack(fill='x',padx=10);self.t_hist.configure(xscrollcommand=horizontal.set)
+         self.total=ctk.CTkLabel(aba,text='',font=('Arial',19,'bold'));self.total.pack(pady=8)
+ 
+     def _dados(self,chave): return {k:e.get().strip() for k,e in self.forms[chave].items()}
+@@ -131,13 +156,16 @@
+         id_=self.sel[chave]
+         if id_ is None: return True
+         atual=getattr(db,'buscar_'+chave)(id_)
++        if atual is None: raise v.ErroValidacao('Registro removido. Atualize a lista antes de editar.')
+         mudancas=[]
+         for k,novo in dados.items():
+             antigo=atual[k]
++            if chave=='servico' and k=='preco':
++                if atual['preco_centavos']==v.preco_centavos(novo): continue
+             if str(antigo or '')!=str(novo or ''): mudancas.append(f'{k}: {antigo or "(vazio)"} → {novo or "(vazio)"}')
+         if not mudancas:
+             messagebox.showinfo('Sem alterações','Nenhum campo foi alterado.',parent=self);return False
+-        return self.confirmar('Salvar alterações?\n\n'+'\n'.join(mudancas))
++        return self.confirmar(f'Salvar alterações no registro #{id_}?\n\n'+'\n'.join(mudancas))
+ 
+     def salvar_cliente(self):
+         try:
+@@ -173,18 +201,52 @@
+     def salvar_atendimento(self):
+         try:
+             d=self._dados('atendimento');id_=self.sel['atendimento']
+-            d['id_animal']=self._id(d['id_animal']);d['id_servico']=self._id(d['id_servico']);dt=v.data_hora_futura(d['data_hora'])
++            for campo in ('id_animal','id_servico','id_profissional'): d[campo]=self._id(d[campo])
++            dt=v.data_hora(d['data_hora']) if id_ else v.data_hora_futura(d['data_hora'])
++            if id_ and dt<=datetime.now() and not self.confirmar('Registrar este atendimento no horário informado, que já chegou ou passou? Confirme o horário real antes de concluir.'): return
+             if not self._confirmar_edicao('atendimento',{**d,'data_hora':dt.isoformat(timespec='minutes')}): return
+-            if id_: db.atualizar_atendimento(id_,d['id_animal'],d['id_servico'],dt)
+-            else: db.inserir_atendimento(d['id_animal'],d['id_servico'],dt)
++            if id_: db.atualizar_atendimento(id_,d['id_animal'],d['id_servico'],dt,d['id_profissional'])
++            else: db.inserir_atendimento(d['id_animal'],d['id_servico'],dt,d['id_profissional'])
+         except Exception as e: return self.erro(e)
+         self._sucesso('atendimento')
++
++    def reagendar_agora(self):
++        if self.sel['atendimento'] is None: return
++        preencher(self.forms['atendimento']['data_hora'],datetime.now().strftime('%d/%m/%Y %H:%M'))
++        self.salvar_atendimento()
++
++    def salvar_profissional(self):
++        try:
++            d=self._dados('profissional');id_=self.sel['profissional']
++            if not self._confirmar_edicao('profissional',d): return
++            if id_: db.atualizar_profissional(id_,**d)
++            else: db.inserir_profissional(**d)
++        except Exception as e: return self.erro(e)
++        self._sucesso('profissional')
++
++    def alternar_profissional(self):
++        id_=self.sel['profissional']
++        if not id_: return
++        try:
++            atual=db.buscar_profissional(id_)
++            if not self.confirmar(('Inativar' if atual['ativo'] else 'Reativar')+' este profissional? Os atendimentos existentes serão preservados.'): return
++            db.definir_profissional_ativo(id_,not atual['ativo'])
++        except Exception as e: return self.erro(e)
++        self.limpar_form('profissional');self.atualizar_tudo()
++
++    def adicionar_equipe_demo(self):
++        if not self.confirmar('Adicionar Ana Souza, Bruno Lima e Carla Santos como profissionais fictícios? Não serão criados usuários de login.'): return
++        try: popular_demo.popular_profissionais()
++        except Exception as e: return self.erro(e)
++        self.atualizar_tudo()
+ 
+     def _sucesso(self,chave):
+         self.limpar_form(chave);self.atualizar_tudo();messagebox.showinfo('Sucesso','Registro salvo.',parent=self)
+ 
+     def limpar_form(self,chave):
+         self.sel[chave]=None
++        self._originais_form.pop(chave,None)
++        self.modos[chave].configure(text='Novo cadastro')
+         for e in self.forms[chave].values():
+             e.configure(state='normal')
+             if isinstance(e,ctk.CTkOptionMenu): e.set(e.cget('values')[0])
+@@ -197,19 +259,23 @@
+     def carregar(self,chave):
+         id_=self.tables[chave].selecionado()
+         if id_ is None: return
++        if self.sel[chave]==id_: return
+         linha=getattr(db,'buscar_'+chave)(id_)
+         if linha is None: return
+         self.sel[chave]=id_
+         for k,e in self.forms[chave].items():
+             e.configure(state='normal');valor=linha[k]
+             if k.startswith('id_'):
+-                opcoes=e.cget('values');e.set(next((x for x in opcoes if x.startswith(str(valor)+' - ')),str(valor)+' - inativo'))
++                opcoes=e.cget('values');e.set(next((x for x in opcoes if x.startswith(str(valor)+' - ')),'—' if valor is None else str(valor)+' - inativo'))
+             else:
+                 if k=='cpf': valor=v.formatar_cpf(valor)
+                 elif k=='telefone': valor=v.formatar_telefone(valor)
+                 elif k=='data_hora': valor=datetime.fromisoformat(valor).strftime('%d/%m/%Y %H:%M')
++                elif k=='preco': valor=v.valor_para_campo(linha['preco_centavos'])
+                 preencher(e,str(valor) if valor is not None else '')
+         permitido=chave!='atendimento' or linha['status']=='agendado'
++        self._originais_form[chave]=self._dados(chave)
++        self.modos[chave].configure(text=f'{"Editando" if permitido else "Consulta"} #{id_}')
+         self.save_buttons[chave].configure(state='normal' if permitido else 'disabled')
+         for b in self.action_buttons.get(chave,[]): b.configure(state='normal' if permitido else 'disabled')
+         if not permitido:
+@@ -259,27 +325,51 @@
+ 
+     def atualizar_lista(self,chave):
+         busca=self.buscas[chave].get()
++        filtro=(busca,)
+         if chave=='cliente':
+             linhas=[(c['id_cliente'],c['nome'],v.formatar_cpf(c['cpf']) or 'Pendente',v.formatar_telefone(c['telefone']),c['email'] or '',c['endereco'] or '') for c in db.listar_clientes(busca)]
+         elif chave=='animal': linhas=[(a['id_animal'],a['nome'],a['especie'],a['tutor']) for a in db.listar_animais(busca)]
+-        elif chave=='servico': linhas=[(s['id_servico'],s['nome'],f"R$ {s['preco']:.2f}",s['duracao_min'],'Ativo' if s['ativo'] else 'Inativo') for s in db.listar_servicos() if busca.lower() in s['nome'].lower()]
++        elif chave=='servico': linhas=[(s['id_servico'],s['nome'],v.formatar_centavos(s['preco_centavos']),s['duracao_min'],'Ativo' if s['ativo'] else 'Inativo') for s in db.listar_servicos() if busca.lower() in s['nome'].lower()]
++        elif chave=='profissional': linhas=[(p['id_profissional'],p['nome'],p['funcao'],'Ativo' if p['ativo'] else 'Inativo') for p in db.listar_profissionais() if busca.lower() in (p['nome']+' '+p['funcao']).lower()]
+         else:
+             status=self.status_filtro.get();status=None if status=='Todos' else status
+-            linhas=[(a['id_atendimento'],datetime.fromisoformat(a['data_hora']).strftime('%d/%m/%Y %H:%M'),a['animal'],a['tutor'],a['servico'],a['status'],f"R$ {a['valor']:.2f}") for a in db.listar_atendimentos(busca,status)]
++            profissional=self.profissional_filtro.get()
++            id_profissional=None if profissional=='Todos os profissionais' else self._id(profissional)
++            filtro=(busca,self.status_filtro.get(),profissional)
++            linhas=[(a['id_atendimento'],datetime.fromisoformat(a['data_hora']).strftime('%d/%m/%Y %H:%M'),datetime.fromisoformat(a['fim_estimado']).strftime('%d/%m/%Y %H:%M'),a['profissional'],a['animal'],a['tutor'],a['servico'],a['status'],v.formatar_centavos(a['valor_centavos'])) for a in db.listar_atendimentos(busca,status,id_profissional=id_profissional)]
++        if self.sel[chave] is not None and self.sel[chave] not in {linha[0] for linha in linhas}:
++            alterado=self._originais_form.get(chave)!=self._dados(chave)
++            if alterado and not self.confirmar('O filtro ocultará o registro em edição. Descartar as alterações não salvas e encerrar a edição?'):
++                anterior=self._filtros_aplicados.get(chave,('', 'Todos','Todos os profissionais'))
++                preencher(self.buscas[chave],anterior[0])
++                if chave=='atendimento':
++                    self.status_filtro.set(anterior[1]);self.profissional_filtro.set(anterior[2])
++                return
++            self.limpar_form(chave)
+         self.tables[chave].preencher(linhas)
++        self._filtros_aplicados[chave]=filtro
+         if chave=='cliente': self.atualizar_alertas()
+ 
+     def atualizar_historico(self):
+         linhas=db.listar_atendimentos(self.h_busca.get(),'concluido',True)
+-        self.t_hist.preencher([(a['id_atendimento'],datetime.fromisoformat(a['data_hora']).strftime('%d/%m/%Y %H:%M'),a['animal'],a['tutor'],a['servico'],f"R$ {a['valor']:.2f}") for a in linhas])
+-        self.total.configure(text=f"Total de serviços concluídos: R$ {sum(a['valor'] for a in linhas):.2f}")
++        self.t_hist.preencher([(a['id_atendimento'],datetime.fromisoformat(a['data_hora']).strftime('%d/%m/%Y %H:%M'),a['animal'],a['tutor'],a['servico'],a['profissional'],v.formatar_centavos(a['valor_centavos']),'Legado: dados migrados' if a['origem_historico']=='migracao' else 'Identidade preservada') for a in linhas])
++        self.total.configure(text='Total de serviços concluídos: '+v.formatar_centavos(sum(a['valor_centavos'] for a in linhas)))
+ 
+     def atualizar_tudo(self):
+-        opcoes=[('animal','id_cliente',db.listar_clientes(),'id_cliente','nome'),('atendimento','id_animal',db.listar_animais(),'id_animal','nome'),('atendimento','id_servico',db.listar_servicos(True),'id_servico','nome')]
++        opcoes=[('animal','id_cliente',db.listar_clientes(),'id_cliente','nome'),('atendimento','id_animal',db.listar_animais(),'id_animal','nome'),('atendimento','id_servico',db.listar_servicos(True),'id_servico','nome'),('atendimento','id_profissional',db.listar_profissionais(True),'id_profissional','nome')]
+         for aba,campo,linhas,id_,nome in opcoes:
+             e=self.forms[aba][campo];valores=[f'{r[id_]} - {r[nome]}' for r in linhas] or ['—'];atual=e.get()
+             e.configure(values=valores)
+-            if atual not in valores: e.set(valores[0])
++            if atual not in valores:
++                id_atual=atual.split(' - ',1)[0]
++                mesmo=next((valor for valor in valores if valor.split(' - ',1)[0]==id_atual),None)
++                if mesmo: e.set(mesmo)
++                elif self.sel[aba] is None: e.set(valores[0])
++        profissionais=['Todos os profissionais']+[f"{p['id_profissional']} - {p['nome']}" for p in db.listar_profissionais()]
++        atual=self.profissional_filtro.get();self.profissional_filtro.configure(values=profissionais)
++        if atual not in profissionais:
++            id_atual=atual.split(' - ',1)[0]
++            self.profissional_filtro.set(next((p for p in profissionais if p.split(' - ',1)[0]==id_atual),profissionais[0]))
+         for chave in self.tables: self.atualizar_lista(chave)
+         self.atualizar_historico()
+ 
+@@ -338,7 +428,7 @@
+         self._dialogo_usuario=janela,entradas,salvar,msg
+ 
+     def mostrar_ajuda(self):
+-        messagebox.showinfo('Como usar','1. Cadastre o cliente (tutor).\n2. Cadastre o animal vinculado ao tutor.\n3. Prepare os serviços com preço e duração.\n4. Agende uma data futura e depois conclua ou cancele.\n5. Consulte os concluídos no Histórico.\n\nSelecione uma linha para editar. CPF e e-mail não podem repetir.\nUse Minha conta para cadastrar o e-mail de recuperação.\nBackup salva uma cópia consistente do banco.',parent=self)
++        messagebox.showinfo('Como usar','1. Cadastre o cliente e seu animal.\n2. Prepare serviços com preço de até duas casas decimais.\n3. Cadastre profissionais ou use Adicionar equipe fictícia.\n4. Agende animal, serviço, profissional e horário futuro.\n5. Para corrigir a realização, selecione e use Reagendar para agora ou edite data/hora.\n6. Conclua após o início ou cancele com motivo.\n\nO profissional e o animal ficam reservados até o fim previsto, mesmo após conclusão antecipada. Cancelamento libera o intervalo.\nO histórico conserva o tutor da realização. Registros antigos são identificados como migrados.\nO rótulo Editando #ID identifica o registro; filtros encerram a edição quando o ocultam e confirmam o descarte de mudanças.\nBackup salva uma cópia consistente do banco.',parent=self)
+ 
+     def oferecer_demo(self):
+         if db.listar_clientes() or db.listar_animais() or db.listar_servicos(): return
+--- a/petshop_mvp/petshop/database.py
++++ b/petshop_mvp/petshop/database.py
+@@ -5,7 +5,8 @@
+ import re
+ import sqlite3
+ from contextlib import contextmanager
+-from datetime import datetime
++from datetime import datetime, timedelta
++from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+ import validacoes as v
+ from validacoes import ErroValidacao
+ from duplicidade_clientes import instalar_protecao, DuplicadosExistentes
+@@ -33,7 +34,8 @@
+         con.rollback()
+         mensagem = str(erro)
+         for indice, aviso in [('ux_cliente_cpf', 'CPF já cadastrado.'), ('ux_cliente_email', 'E-mail já cadastrado para outro cliente.'),
+-                               ('ux_servico_nome', 'Já existe um serviço com este nome.'), ('ux_usuario_email', 'E-mail já cadastrado para outro usuário.')]:
++                               ('ux_servico_nome', 'Já existe um serviço com este nome.'), ('ux_usuario_email', 'E-mail já cadastrado para outro usuário.'),
++                               ('ux_profissional_nome', 'Já existe um profissional com este nome.')]:
+             if indice in mensagem:
+                 raise ErroValidacao(aviso + ' Nenhuma alteração foi salva.') from erro
+         if 'Dados inválidos' in mensagem or 'CPF deve' in mensagem:
+@@ -71,10 +73,69 @@
+             CREATE TABLE IF NOT EXISTS usuario(id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
+                 nome TEXT NOT NULL, login TEXT NOT NULL UNIQUE, senha_hash TEXT NOT NULL,
+                 salt TEXT NOT NULL, criado_em TEXT NOT NULL);
++            CREATE TABLE IF NOT EXISTS profissional(id_profissional INTEGER PRIMARY KEY AUTOINCREMENT,
++                nome TEXT NOT NULL, funcao TEXT NOT NULL, ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)));
+         ''')
+         instalar_protecao(con)
+         _migrar_atendimentos(con)
+         _migrar_recuperacao(con)
++        _migrar_revisao_drap(con)
++
++
++def _migrar_revisao_drap(con):
++    """Preserva IDs; não inventa profissionais nem autoria histórica inexistente."""
++    try:
++        con.execute('BEGIN IMMEDIATE')
++        con.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_profissional_nome ON profissional(lower(trim(nome)))')
++        con.execute('''CREATE TABLE IF NOT EXISTS ajuste_monetario_migracao(
++            tabela TEXT NOT NULL,id_registro INTEGER NOT NULL,valor_anterior TEXT NOT NULL,
++            centavos INTEGER NOT NULL,PRIMARY KEY(tabela,id_registro))''')
++        for tabela,campo,id_ in [('servico','preco','id_servico'),('atendimento','valor','id_atendimento')]:
++            colunas={r[1] for r in con.execute(f'PRAGMA table_info({tabela})')}
++            if campo+'_centavos' not in colunas:
++                con.execute(f'ALTER TABLE {tabela} ADD COLUMN {campo}_centavos INTEGER')
++            for row in con.execute(f'SELECT {id_},{campo} FROM {tabela} WHERE {campo}_centavos IS NULL').fetchall():
++                try:
++                    valor=Decimal(str(row[campo]))
++                    if not valor.is_finite() or valor<=0: raise InvalidOperation
++                    centavos=int((valor*100).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
++                    if not 0<centavos<=99_999_999_999: raise InvalidOperation
++                except (InvalidOperation,ValueError,OverflowError):
++                    raise ErroValidacao(f'Valor inválido em {tabela} ID {row[id_]}. Revise antes de migrar.') from None
++                if valor != Decimal(centavos)/100:
++                    con.execute('INSERT INTO ajuste_monetario_migracao VALUES(?,?,?,?)',
++                                (tabela,row[id_],str(valor),centavos))
++                con.execute(f'UPDATE {tabela} SET {campo}=?,{campo}_centavos=? WHERE {id_}=?',
++                            (centavos/100,centavos,row[id_]))
++            for evento in ('INSERT','UPDATE'):
++                con.execute(f'''CREATE TRIGGER IF NOT EXISTS moeda_{tabela}_{evento.lower()}
++                    BEFORE {evento} ON {tabela} WHEN NEW.{campo}_centavos IS NULL
++                    OR typeof(NEW.{campo}_centavos)!='integer' OR NEW.{campo}_centavos NOT BETWEEN 1 AND 99999999999
++                    OR NEW.{campo} != NEW.{campo}_centavos/100.0
++                    BEGIN SELECT RAISE(ABORT,'Dados inválidos: valor deve corresponder aos centavos.'); END''')
++        colunas={r[1] for r in con.execute('PRAGMA table_info(atendimento)')}
++        for campo,tipo in [('id_profissional','INTEGER REFERENCES profissional(id_profissional)'),
++                           ('tutor_nome','TEXT'),('servico_nome','TEXT'),('profissional_nome','TEXT'),
++                           ('origem_historico','TEXT'),('concluido_em','TEXT')]:
++            if campo not in colunas: con.execute(f'ALTER TABLE atendimento ADD COLUMN {campo} {tipo}')
++        con.execute('''UPDATE atendimento SET
++            tutor_nome=(SELECT c.nome FROM animal a JOIN cliente c USING(id_cliente) WHERE a.id_animal=atendimento.id_animal),
++            servico_nome=(SELECT nome FROM servico s WHERE s.id_servico=atendimento.id_servico),
++            origem_historico='migracao' WHERE origem_historico IS NULL''')
++        con.execute('CREATE INDEX IF NOT EXISTS ix_agenda_animal ON atendimento(id_animal,status,data_hora)')
++        con.execute('CREATE INDEX IF NOT EXISTS ix_agenda_profissional ON atendimento(id_profissional,status,data_hora)')
++        # Registros antigos sem profissional ficam pendentes. Novos exigem o vínculo.
++        con.execute('''CREATE TRIGGER IF NOT EXISTS atendimento_profissional_insert BEFORE INSERT ON atendimento
++            WHEN NEW.id_profissional IS NULL OR trim(coalesce(NEW.tutor_nome,''))=''
++            OR trim(coalesce(NEW.servico_nome,''))='' OR trim(coalesce(NEW.profissional_nome,''))=''
++            BEGIN SELECT RAISE(ABORT,'Dados inválidos: informe profissional e identificação do atendimento.'); END''')
++        con.execute('''CREATE TRIGGER IF NOT EXISTS atendimento_profissional_update BEFORE UPDATE ON atendimento
++            WHEN OLD.id_profissional IS NOT NULL AND NEW.id_profissional IS NULL
++            BEGIN SELECT RAISE(ABORT,'Dados inválidos: não remova o profissional do atendimento.'); END''')
++        con.commit()
++    except Exception:
++        con.rollback()
++        raise
+ 
+ 
+ def _migrar_atendimentos(con):
+@@ -136,6 +197,7 @@
+ def buscar_cliente(id_): return _buscar('cliente', id_)
+ def buscar_animal(id_): return _buscar('animal', id_)
+ def buscar_servico(id_): return _buscar('servico', id_)
++def buscar_profissional(id_): return _buscar('profissional', id_)
+ def buscar_atendimento(id_): return _buscar('atendimento', id_)
+ 
+ 
+@@ -191,18 +253,18 @@
+ 
+ def inserir_servico(nome, descricao, preco, duracao_min):
+     v.obrigatorios(Nome=nome)
+-    preco, duracao_min = v.preco(preco), v.inteiro_positivo(duracao_min,'Duração')
+-    with conectar(True) as con:
+-        return con.execute('INSERT INTO servico(nome,descricao,preco,duracao_min) VALUES(?,?,?,?)',
+-                           (nome.strip(),descricao,preco,duracao_min)).lastrowid
++    centavos, duracao_min = v.preco_centavos(preco), v.inteiro_positivo(duracao_min,'Duração')
++    with conectar(True) as con:
++        return con.execute('INSERT INTO servico(nome,descricao,preco,preco_centavos,duracao_min) VALUES(?,?,?,?,?)',
++                           (nome.strip(),descricao,centavos/100,centavos,duracao_min)).lastrowid
+ 
+ 
+ def atualizar_servico(id_, nome, descricao, preco, duracao_min):
+     v.obrigatorios(Nome=nome)
+-    preco, duracao_min = v.preco(preco), v.inteiro_positivo(duracao_min,'Duração')
+-    with conectar(True) as con:
+-        con.execute('UPDATE servico SET nome=?,descricao=?,preco=?,duracao_min=? WHERE id_servico=?',
+-                    (nome.strip(),descricao,preco,duracao_min,id_))
++    centavos, duracao_min = v.preco_centavos(preco), v.inteiro_positivo(duracao_min,'Duração')
++    with conectar(True) as con:
++        con.execute('UPDATE servico SET nome=?,descricao=?,preco=?,preco_centavos=?,duracao_min=? WHERE id_servico=?',
++                    (nome.strip(),descricao,centavos/100,centavos,duracao_min,id_))
+ 
+ 
+ def listar_servicos(somente_ativos=False):
+@@ -215,12 +277,34 @@
+         con.execute('UPDATE servico SET ativo=? WHERE id_servico=?', (int(bool(ativo)),id_))
+ 
+ 
+-def _existe_sobreposicao(con,id_animal,inicio,duracao_min,ignorar_id=None):
+-    inicio = inicio.timestamp()
+-    fim = inicio + duracao_min*60
+-    for a in con.execute("SELECT * FROM atendimento WHERE id_animal=? AND status='agendado'", (id_animal,)):
+-        outro = datetime.fromisoformat(a['data_hora']).timestamp()
+-        if a['id_atendimento'] != ignorar_id and inicio < outro+a['duracao_min']*60 and outro < fim:
++def inserir_profissional(nome,funcao):
++    v.obrigatorios(Nome=nome,Função=funcao)
++    with conectar(True) as con:
++        return con.execute('INSERT INTO profissional(nome,funcao) VALUES(?,?)',(nome.strip(),funcao.strip())).lastrowid
++
++
++def atualizar_profissional(id_profissional,nome,funcao):
++    v.obrigatorios(Nome=nome,Função=funcao)
++    with conectar(True) as con:
++        con.execute('UPDATE profissional SET nome=?,funcao=? WHERE id_profissional=?',(nome.strip(),funcao.strip(),id_profissional))
++
++
++def listar_profissionais(somente_ativos=False):
++    with conectar() as con:
++        return con.execute('SELECT * FROM profissional '+('WHERE ativo=1 ' if somente_ativos else '')+'ORDER BY nome').fetchall()
++
++
++def definir_profissional_ativo(id_,ativo):
++    with conectar(True) as con:
++        con.execute('UPDATE profissional SET ativo=? WHERE id_profissional=?',(int(bool(ativo)),id_))
++
++
++def _existe_sobreposicao(con,id_animal,inicio,duracao_min,ignorar_id=None,*,id_profissional=None):
++    campo,identidade=('id_profissional',id_profissional) if id_profissional is not None else ('id_animal',id_animal)
++    fim = inicio + timedelta(minutes=duracao_min)
++    for a in con.execute(f"SELECT * FROM atendimento WHERE {campo}=? AND status IN ('agendado','concluido')", (identidade,)):
++        outro = datetime.fromisoformat(a['data_hora'])
++        if a['id_atendimento'] != ignorar_id and inicio < outro+timedelta(minutes=a['duracao_min']) and outro < fim:
+             return True
+     return False
+ 
+@@ -230,22 +314,39 @@
+         return _existe_sobreposicao(con,id_animal,inicio,duracao_min,ignorar_id)
+ 
+ 
+-def _validar_agendamento(con,id_animal,id_servico,data_hora,ignorar_id=None,duracao_min=None):
+-    if not isinstance(data_hora,datetime) or data_hora.replace(second=0,microsecond=0) <= datetime.now():
++def _validar_agendamento(con,id_animal,id_servico,data_hora,id_profissional,ignorar_id=None,duracao_min=None):
++    if not isinstance(data_hora,datetime) or data_hora.tzinfo is not None:
++        raise ErroValidacao('Informe uma data e hora local válida.')
++    data_hora=data_hora.replace(second=0,microsecond=0)
++    if ignorar_id is None and data_hora <= datetime.now():
+         raise ErroValidacao('Não é possível agendar em data ou hora passada.')
++    if con.execute('SELECT 1 FROM animal WHERE id_animal=?',(id_animal,)).fetchone() is None:
++        raise ErroValidacao('Animal não encontrado.')
+     servico = con.execute('SELECT * FROM servico WHERE id_servico=?',(id_servico,)).fetchone()
+     if servico is None or not servico['ativo']:
+         raise ErroValidacao('Serviço inexistente ou inativo. Selecione um serviço ativo.')
+     if _existe_sobreposicao(con,id_animal,data_hora,duracao_min or servico['duracao_min'],ignorar_id):
+         raise ErroValidacao('Este animal já possui atendimento sobreposto neste horário.')
++    profissional=con.execute('SELECT * FROM profissional WHERE id_profissional=?',(id_profissional,)).fetchone()
++    if profissional is None or not profissional['ativo']:
++        raise ErroValidacao('Selecione um profissional ativo para o atendimento.')
++    if _existe_sobreposicao(con,None,data_hora,duracao_min or servico['duracao_min'],ignorar_id,id_profissional=id_profissional):
++        raise ErroValidacao(f"O profissional {profissional['nome']} já está reservado neste intervalo. Escolha outro horário ou profissional.")
+     return servico
+ 
+ 
+-def inserir_atendimento(id_animal,id_servico,data_hora):
+-    with conectar(True) as con:
+-        s=_validar_agendamento(con,id_animal,id_servico,data_hora)
+-        return con.execute('INSERT INTO atendimento(id_animal,id_servico,data_hora,valor,duracao_min) VALUES(?,?,?,?,?)',
+-                    (id_animal,id_servico,data_hora.isoformat(timespec='minutes'),s['preco'],s['duracao_min'])).lastrowid
++def _tutor_atual(con,id_animal):
++    return con.execute('SELECT c.nome FROM animal a JOIN cliente c USING(id_cliente) WHERE a.id_animal=?',(id_animal,)).fetchone()[0]
++
++
++def inserir_atendimento(id_animal,id_servico,data_hora,id_profissional=None):
++    with conectar(True) as con:
++        s=_validar_agendamento(con,id_animal,id_servico,data_hora,id_profissional)
++        profissional=con.execute('SELECT nome FROM profissional WHERE id_profissional=?',(id_profissional,)).fetchone()[0]
++        return con.execute('''INSERT INTO atendimento(id_animal,id_servico,data_hora,valor,valor_centavos,duracao_min,
++            id_profissional,tutor_nome,servico_nome,profissional_nome,origem_historico) VALUES(?,?,?,?,?,?,?,?,?,?,?)''',
++            (id_animal,id_servico,data_hora.isoformat(timespec='minutes'),s['preco_centavos']/100,s['preco_centavos'],s['duracao_min'],
++             id_profissional,_tutor_atual(con,id_animal),s['nome'],profissional,'registro')).lastrowid
+ 
+ 
+ def _exigir_agendado(con,id_):
+@@ -255,38 +356,61 @@
+     return a
+ 
+ 
+-def atualizar_atendimento(id_,id_animal,id_servico,data_hora):
++def atualizar_atendimento(id_,id_animal,id_servico,data_hora,id_profissional=None):
+     with conectar(True) as con:
+         a=_exigir_agendado(con,id_)
+         mesmo=a['id_servico']==id_servico
+-        s=_validar_agendamento(con,id_animal,id_servico,data_hora,id_,a['duracao_min'] if mesmo else None)
+-        con.execute('UPDATE atendimento SET id_animal=?,id_servico=?,data_hora=?,valor=?,duracao_min=? WHERE id_atendimento=?',
+-                    (id_animal,id_servico,data_hora.isoformat(timespec='minutes'),a['valor'] if mesmo else s['preco'],a['duracao_min'] if mesmo else s['duracao_min'],id_))
++        s=_validar_agendamento(con,id_animal,id_servico,data_hora,id_profissional,id_,a['duracao_min'] if mesmo else None)
++        centavos=a['valor_centavos'] if mesmo else s['preco_centavos']
++        profissional=con.execute('SELECT nome FROM profissional WHERE id_profissional=?',(id_profissional,)).fetchone()[0]
++        con.execute('''UPDATE atendimento SET id_animal=?,id_servico=?,data_hora=?,valor=?,valor_centavos=?,duracao_min=?,
++            id_profissional=?,tutor_nome=?,servico_nome=?,profissional_nome=?,origem_historico='registro' WHERE id_atendimento=?''',
++            (id_animal,id_servico,data_hora.isoformat(timespec='minutes'),centavos/100,centavos,a['duracao_min'] if mesmo else s['duracao_min'],
++             id_profissional,_tutor_atual(con,id_animal),a['servico_nome'] if mesmo else s['nome'],profissional,id_))
+ 
+ 
+ def cancelar_atendimento(id_,motivo):
+     v.obrigatorios(Motivo=motivo)
+     with conectar(True) as con:
+-        _exigir_agendado(con,id_)
+-        con.execute("UPDATE atendimento SET status='cancelado',motivo_cancelamento=? WHERE id_atendimento=?",(motivo.strip(),id_))
++        a=_exigir_agendado(con,id_)
++        con.execute("UPDATE atendimento SET status='cancelado',motivo_cancelamento=?,tutor_nome=? WHERE id_atendimento=?",
++                    (motivo.strip(),_tutor_atual(con,a['id_animal']),id_))
+ 
+ 
+ def concluir_atendimento(id_):
+     with conectar(True) as con:
+-        _exigir_agendado(con,id_)
+-        con.execute("UPDATE atendimento SET status='concluido' WHERE id_atendimento=?",(id_,))
+-
+-
+-def listar_atendimentos(busca='', status=None, mais_recentes_primeiro=False):
+-    sql='''SELECT at.*,an.nome AS animal,c.nome AS tutor,s.nome AS servico FROM atendimento at
+-        JOIN animal an USING(id_animal) JOIN cliente c USING(id_cliente) JOIN servico s USING(id_servico)
+-        WHERE (an.nome LIKE ? OR c.nome LIKE ? OR s.nome LIKE ?)'''
+-    params=[f'%{busca}%']*3
++        a=_exigir_agendado(con,id_)
++        agora=datetime.now()
++        if datetime.fromisoformat(a['data_hora'])>agora:
++            raise ErroValidacao('Não é possível concluir um atendimento futuro. Reagende para o horário em que foi realizado.')
++        if a['id_profissional'] is None:
++            raise ErroValidacao('Atribua um profissional antes de concluir este atendimento legado.')
++        profissional=con.execute('SELECT nome FROM profissional WHERE id_profissional=?',(a['id_profissional'],)).fetchone()[0]
++        con.execute('''UPDATE atendimento SET status='concluido',tutor_nome=?,profissional_nome=?,
++            concluido_em=?,origem_historico='registro' WHERE id_atendimento=?''',
++            (_tutor_atual(con,a['id_animal']),profissional,agora.isoformat(timespec='seconds'),id_))
++
++
++def listar_atendimentos(busca='', status=None, mais_recentes_primeiro=False,id_profissional=None):
++    sql='''SELECT * FROM (SELECT at.*,an.nome AS animal,
++        CASE WHEN at.status='agendado' THEN c.nome ELSE at.tutor_nome END AS tutor,
++        at.servico_nome AS servico,
++        CASE WHEN at.status='agendado' THEN coalesce(p.nome,'Pendente de atribuição')
++             ELSE coalesce(at.profissional_nome,'Não informado (legado)') END AS profissional
++        FROM atendimento at JOIN animal an USING(id_animal) JOIN cliente c USING(id_cliente)
++        LEFT JOIN profissional p USING(id_profissional)) at
++        WHERE (animal LIKE ? OR tutor LIKE ? OR servico LIKE ? OR profissional LIKE ?)'''
++    params=[f'%{busca}%']*4
+     if status:
+         sql+=' AND at.status=?';params.append(status)
++    if id_profissional is not None:
++        sql+=' AND at.id_profissional=?';params.append(id_profissional)
+     sql+=' ORDER BY at.data_hora '+('DESC' if mais_recentes_primeiro else 'ASC')
+     with conectar() as con:
+-        return con.execute(sql,params).fetchall()
++        linhas=[dict(r) for r in con.execute(sql,params)]
++    for a in linhas:
++        a['fim_estimado']=(datetime.fromisoformat(a['data_hora'])+timedelta(minutes=a['duracao_min'])).isoformat(timespec='minutes')
++    return linhas
+ 
+ 
+ def _hash_senha(senha,salt):
+--- a/petshop_mvp/petshop/popular_demo.py
++++ b/petshop_mvp/petshop/popular_demo.py
+@@ -1,26 +1,45 @@
+-"""Carga de exemplos fictícios em banco vazio; nunca atribui e-mail de usuário."""
++"""Exemplos fictícios e equipe demonstrativa; não cria usuários de login."""
+ from datetime import datetime,timedelta
+ import database as db
++
++EQUIPE=[('Ana Souza','Banho e tosa'),('Bruno Lima','Banho e tosa'),('Carla Santos','Atendimento veterinário')]
++
++
++def popular_profissionais():
++    db.criar_tabelas()
++    for nome,funcao in EQUIPE:
++        with db.conectar(True) as con:
++            con.execute('INSERT OR IGNORE INTO profissional(nome,funcao) VALUES(?,?)',(nome,funcao))
++    return {p['nome']:p['id_profissional'] for p in db.listar_profissionais()}
+ 
+ 
+ def popular():
+     db.criar_tabelas()
++    equipe=popular_profissionais()
++    profissionais=[equipe[nome] for nome,_ in EQUIPE]
+     if db.listar_clientes() or db.listar_animais() or db.listar_servicos():
+-        print('Banco já possui dados; nada foi inserido.');return
++        print('Banco já possui dados; apenas a equipe fictícia foi conferida.');return
++    clientes=[]
+     for nome,tel,email,end,cpf in [('Maria Oliveira','86991110001','maria@exemplo.com','Rua das Flores, 120','52998224725'),
+         ('Carlos Pereira','86991110002','carlos@exemplo.com','Av. Central, 45','11144477735'),
+         ('Fernanda Lima','86991110003','','Rua do Sol, 300','12345678909')]:
+-        db.inserir_cliente(nome,tel,email,end,cpf)
+-    for tutor,nome,especie,raca in [(1,'Thor','Cachorro','Golden'),(1,'Mel','Gato','Siamês'),(2,'Bob','Cachorro','Poodle'),(3,'Luna','Gato','SRD')]:
+-        db.inserir_animal(tutor,nome,especie,raca,'')
+-    for nome,preco,dur in [('Banho',50,60),('Tosa',70,90),('Consulta veterinária',120,30),('Vacinação',90,20)]: db.inserir_servico(nome,'',preco,dur)
+-    with db.conectar(True) as con:
+-        for animal,servico,dias in [(1,1,14),(1,2,7),(3,4,10),(4,3,3)]:
+-            s=db.buscar_servico(servico)
+-            con.execute("INSERT INTO atendimento(id_animal,id_servico,data_hora,valor,duracao_min,status) VALUES(?,?,?,?,?,'concluido')",
+-                (animal,servico,(datetime.now()-timedelta(days=dias)).isoformat(timespec='minutes'),s['preco'],s['duracao_min']))
+-    for animal,servico,dias in [(2,1,1),(3,2,2),(1,1,3)]: db.inserir_atendimento(animal,servico,datetime.now()+timedelta(days=dias))
+-    print('Dados de demonstração inseridos.')
++        clientes.append(db.inserir_cliente(nome,tel,email,end,cpf))
++    animais=[]
++    for tutor,nome,especie,raca in [(0,'Thor','Cachorro','Golden'),(0,'Mel','Gato','Siamês'),(1,'Bob','Cachorro','Poodle'),(2,'Luna','Gato','SRD')]:
++        animais.append(db.inserir_animal(clientes[tutor],nome,especie,raca,''))
++    servicos=[]
++    for nome,preco,dur in [('Banho','50,50',60),('Tosa','70,90',90),('Consulta veterinária','120,00',30),('Vacinação','90,25',20)]:
++        servicos.append(db.inserir_servico(nome,'',preco,dur))
++    for animal,servico,dias,prof in [(0,0,14,0),(0,1,7,1),(2,3,10,2),(3,2,3,2)]:
++        futuro=(datetime.now()+timedelta(days=30+ dias)).replace(second=0,microsecond=0)
++        id_=db.inserir_atendimento(animais[animal],servicos[servico],futuro,profissionais[prof])
++        db.atualizar_atendimento(id_,animais[animal],servicos[servico],datetime.now()-timedelta(days=dias),profissionais[prof])
++        db.concluir_atendimento(id_)
++    # Dois profissionais atendem animais distintos no mesmo intervalo.
++    inicio=(datetime.now()+timedelta(days=1)).replace(hour=10,minute=0,second=0,microsecond=0)
++    for animal,servico,prof in [(1,0,0),(2,1,1),(0,0,2)]:
++        db.inserir_atendimento(animais[animal],servicos[servico],inicio,profissionais[prof])
++    print('Dados fictícios inseridos: 3 profissionais, 4 concluídos e 3 reservas simultâneas.')
+ 
+ 
+ if __name__=='__main__': popular()
+--- /dev/null
++++ b/petshop_mvp/petshop/tests/smoke_revisao.py
+@@ -0,0 +1,142 @@
++"""Regressão real dos widgets da revisão; não equivale a estudo com usuário."""
++from datetime import datetime,timedelta
++from pathlib import Path
++import sys
++import tempfile
++import time
++from unittest.mock import patch
++
++sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
++import database as db
++import app as m
++import popular_demo
++
++
++def digitar(e,texto):
++    e.delete(0,'end');e.insert(0,texto)
++
++
++checks=[]
++def check(nome,condicao):
++    assert condicao,nome
++    checks.append(nome);print('OK',nome,flush=True)
++
++
++capturas=None
++if '--capturas' in sys.argv:
++    capturas=Path(sys.argv[sys.argv.index('--capturas')+1]);capturas.mkdir(parents=True,exist_ok=True)
++
++
++def capturar(app,nome,aba):
++    if capturas is None: return
++    from PIL import ImageGrab
++    app.abas.set(aba);app.lift();app.attributes('-topmost',True);app.update()
++    fim=time.monotonic()+0.4
++    while time.monotonic()<fim:
++        app.update();time.sleep(0.02)
++    x,y=app.winfo_rootx(),app.winfo_rooty()
++    ImageGrab.grab(bbox=(x,y,x+app.winfo_width(),y+app.winfo_height())).save(capturas/nome)
++    app.attributes('-topmost',False)
++
++
++with tempfile.TemporaryDirectory() as pasta,patch.object(m.messagebox,'askyesno',return_value=True) as confirmar,patch.object(m.messagebox,'showinfo'),patch.object(m.messagebox,'showerror') as erro:
++    db.DB_PATH=str(Path(pasta)/'gui.db');popular_demo.popular()
++    a=m.App();a.geometry('1260x760+20+20');a.update()
++    try:
++        check('aba Profissionais e equipe fictícia',len(a.tables['profissional'].get_children())==3)
++        a.adicionar_equipe_demo();a.update()
++        check('equipe fictícia não duplica nem cria logins',len(db.listar_profissionais())==3 and db.contar_usuarios()==0)
++        t=a.tables['cliente'];t.selection_set('1');a.carregar('cliente');a.update()
++        digitar(a.forms['cliente']['nome'],'Maria em edição')
++        digitar(a.buscas['cliente'],'Maria');a.atualizar_lista('cliente');a.update()
++        check('busca mantém destaque e edição não salva',t.selection()==('1',) and a.sel['cliente']==1 and a.forms['cliente']['nome'].get()=='Maria em edição')
++        confirmar.return_value=False
++        digitar(a.buscas['cliente'],'Carlos');a.atualizar_lista('cliente');a.update()
++        check('recusar descarte preserva formulário e filtro anterior',a.sel['cliente']==1 and t.selection()==('1',) and a.buscas['cliente'].get()=='Maria' and a.forms['cliente']['nome'].get()=='Maria em edição')
++        confirmar.return_value=True
++        digitar(a.buscas['cliente'],'Carlos');a.atualizar_lista('cliente');a.update()
++        check('filtro que oculta registro encerra edição após confirmação',a.sel['cliente'] is None and not t.selection() and a.forms['cliente']['nome'].get()=='' and a.modos['cliente'].cget('text')=='Novo cadastro')
++        check('nenhuma alteração de pesquisa foi gravada',db.buscar_cliente(1)['nome']=='Maria Oliveira')
++        digitar(a.buscas['cliente'],'');a.atualizar_lista('cliente')
++
++        for k,valor in {'nome':'Serviço centavos','descricao':'Exemplo','preco':'0,005','duracao_min':'30'}.items(): digitar(a.forms['servico'][k],valor)
++        a.salvar_servico()
++        check('interface rejeita fração de centavo e preserva entrada','duas casas' in erro.call_args.args[1] and a.forms['servico']['preco'].get()=='0,005')
++        digitar(a.forms['servico']['preco'],'19,95');a.salvar_servico();a.update()
++        s=max(db.listar_servicos(),key=lambda r:r['id_servico'])['id_servico']
++        a.tables['servico'].selection_set(str(s));a.carregar('servico');a.update()
++        check('preço armazenado em centavos e formulário com vírgula',db.buscar_servico(s)['preco_centavos']==1995 and a.forms['servico']['preco'].get()=='19,95')
++        check('tabela exibe reais com dois decimais',a.tables['servico'].item(str(s),'values')[2]=='R$ 19,95')
++
++        digitar(a.forms['profissional']['nome'],'Diego Moraes');digitar(a.forms['profissional']['funcao'],'Banho e tosa')
++        a.salvar_profissional();a.update()
++        p=max(db.listar_profissionais(),key=lambda r:r['id_profissional'])['id_profissional']
++        check('cadastro de profissional pela interface',db.buscar_profissional(p)['nome']=='Diego Moraes' and any(x.startswith(str(p)+' - ') for x in a.forms['atendimento']['id_profissional'].cget('values')))
++        a.tables['profissional'].selection_set(str(p));a.carregar('profissional')
++        digitar(a.forms['profissional']['funcao'],'Banho e tosa — demonstração');a.salvar_profissional();a.update()
++        check('edição de profissional pela interface',db.buscar_profissional(p)['funcao']=='Banho e tosa — demonstração')
++
++        futuro=(datetime.now()+timedelta(days=20)).replace(hour=10,minute=0,second=0,microsecond=0)
++        form=a.forms['atendimento']
++        form['id_animal'].set('1 - Thor');form['id_servico'].set('1 - Banho');form['id_profissional'].set('1 - Ana Souza')
++        digitar(form['data_hora'],futuro.strftime('%d/%m/%Y %H:%M'));a.salvar_atendimento();a.update()
++        id_=max(r['id_atendimento'] for r in db.listar_atendimentos())
++        check('cadastro com profissional',db.buscar_atendimento(id_)['id_profissional']==1)
++        a.tables['atendimento'].selection_set(str(id_));a.carregar('atendimento');a.concluir_atendimento()
++        check('botão Concluir recusa atendimento futuro',db.buscar_atendimento(id_)['status']=='agendado' and 'futuro' in erro.call_args.args[1])
++        a.limpar_form('atendimento')
++        form['id_animal'].set('2 - Mel');form['id_servico'].set('1 - Banho');form['id_profissional'].set('1 - Ana Souza')
++        digitar(form['data_hora'],(futuro+timedelta(minutes=30)).strftime('%d/%m/%Y %H:%M'));a.salvar_atendimento()
++        check('interface informa conflito do profissional','profissional Ana Souza' in erro.call_args.args[1] and len(db.listar_atendimentos())==8)
++        form['id_profissional'].set('2 - Bruno Lima');a.salvar_atendimento();a.update()
++        outro=max(r['id_atendimento'] for r in db.listar_atendimentos())
++        check('outro profissional aceita horário paralelo',db.buscar_atendimento(outro)['id_profissional']==2)
++        a.profissional_filtro.set('1 - Ana Souza');a.atualizar_lista('atendimento');a.update()
++        check('filtro de agenda por profissional',str(outro) not in a.tables['atendimento'].get_children() and str(id_) in a.tables['atendimento'].get_children())
++        a.profissional_filtro.set('Todos os profissionais');a.atualizar_lista('atendimento')
++        a.tables['atendimento'].selection_set(str(id_));a.carregar('atendimento');a.reagendar_agora();a.update()
++        check('Reagendar para agora salva horário realizado',datetime.fromisoformat(db.buscar_atendimento(id_)['data_hora'])<=datetime.now())
++        a.tables['atendimento'].selection_set(str(id_));a.carregar('atendimento')
++        realizado=(datetime.now()-timedelta(days=2)).replace(second=0,microsecond=0)
++        digitar(form['data_hora'],realizado.strftime('%d/%m/%Y %H:%M'));a.salvar_atendimento();a.update()
++        check('correção de horário passado pela interface',db.buscar_atendimento(id_)['data_hora']==realizado.isoformat(timespec='minutes'))
++        a.tables['atendimento'].selection_set(str(id_));a.carregar('atendimento');a.concluir_atendimento();a.update()
++        check('conclusão após reagendar aceita',db.buscar_atendimento(id_)['status']=='concluido')
++
++        db.atualizar_animal(1,2,'Thor','Cachorro','Golden','');a.atualizar_tudo();a.update()
++        historico={r['id_atendimento']:r for r in db.listar_atendimentos(status='concluido')}
++        check('troca de tutor preserva conclusão antiga',historico[id_]['tutor']=='Maria Oliveira')
++        novo=db.inserir_atendimento(1,1,futuro+timedelta(days=3),1)
++        db.atualizar_atendimento(novo,1,1,datetime.now()-timedelta(days=1),1);db.concluir_atendimento(novo)
++        a.atualizar_tudo();a.update()
++        historico={r['id_atendimento']:r for r in db.listar_atendimentos(status='concluido')}
++        check('novo atendimento usa novo tutor',historico[novo]['tutor']=='Carlos Pereira')
++        check('histórico gráfico usa os dois tutores',a.t_hist.item(str(id_),'values')[3]=='Maria Oliveira' and a.t_hist.item(str(novo),'values')[3]=='Carlos Pereira')
++        check('total gráfico soma centavos exatamente',a.total.cget('text')=='Total de serviços concluídos: '+m.v.formatar_centavos(sum(r['valor_centavos'] for r in historico.values())))
++
++        a.tables['atendimento'].selection_set('7');a.carregar('atendimento');a.update()
++        a.tables['profissional'].selection_set('3');a.carregar('profissional');a.alternar_profissional();a.update()
++        check('inativação remove profissional de novas reservas',not any(p.startswith('3 - ') for p in form['id_profissional'].cget('values')))
++        check('inativação não troca profissional de edição aberta',form['id_profissional'].get().startswith('3 - ') and a.sel['atendimento']==7)
++        a.tables['profissional'].selection_set('3');a.carregar('profissional');a.alternar_profissional();a.update()
++        check('reativação devolve profissional à agenda',any(p.startswith('3 - ') for p in form['id_profissional'].cget('values')))
++        check('tabela apresenta fim estimado',a.tables['atendimento'].item(str(outro),'values')[2]==(futuro+timedelta(minutes=90)).strftime('%d/%m/%Y %H:%M'))
++        a.profissional_filtro.set('Todos os profissionais');a.status_filtro.set('agendado');a.atualizar_lista('atendimento');a.tables['atendimento'].selection_set('5');a.carregar('atendimento');a.update()
++        capturar(a,'agenda_profissionais.png','Atendimentos')
++        capturar(a,'historico_tutores.png','Histórico')
++        capturar(a,'profissionais.png','Profissionais')
++        a.tables['cliente'].selection_set('1');a.carregar('cliente');a.update()
++        capturar(a,'cadastro_cliente.png','Clientes')
++        a.tables['servico'].selection_set(str(s));a.carregar('servico');a.update()
++        capturar(a,'servicos_centavos.png','Serviços')
++        a.tables['atendimento'].selection_set(str(outro));a.carregar('atendimento')
++        with patch.object(m.simpledialog,'askstring',return_value='Cancelamento de demonstração'):
++            a.cancelar_atendimento()
++        a.status_filtro.set('cancelado');a.atualizar_lista('atendimento');a.tables['atendimento'].selection_set(str(outro));a.carregar('atendimento');a.update()
++        check('cancelamento pela interface preserva motivo e registro',db.buscar_atendimento(outro)['motivo_cancelamento']=='Cancelamento de demonstração' and a.save_buttons['atendimento'].cget('state')=='disabled')
++        a.tables['atendimento'].xview_moveto(1.0)
++        capturar(a,'cancelamento.png','Atendimentos')
++    finally:
++        a.destroy()
++
++print(f'{len(checks)}/{len(checks)} verificações gráficas da revisão aprovadas. Dados fictícios; sem e-mail real.')
+--- /dev/null
++++ b/petshop_mvp/petshop/tests/test_revisao.py
+@@ -0,0 +1,225 @@
++"""Critérios de aceitação da revisão DRAP; somente bancos temporários."""
++from concurrent.futures import ThreadPoolExecutor
++from contextlib import closing
++from datetime import datetime, timedelta
++from pathlib import Path
++import sqlite3
++import sys
++import tempfile
++import unittest
++
++sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
++import database as db
++import validacoes as v
++import popular_demo
++
++
++class Revisao(unittest.TestCase):
++    def setUp(self):
++        self.tmp=tempfile.TemporaryDirectory()
++        self.original=db.DB_PATH
++        db.DB_PATH=str(Path(self.tmp.name)/'revisao.db')
++        db.criar_tabelas()
++        self.c1=db.inserir_cliente('Tutor original','85999990000','','','52998224725')
++        self.c2=db.inserir_cliente('Novo tutor','85999990001','','','11144477735')
++        self.a1=db.inserir_animal(self.c1,'Mel','Gato','','')
++        self.a2=db.inserir_animal(self.c2,'Bob','Cachorro','','')
++        self.s=db.inserir_servico('Banho','', '50,05',60)
++        self.p1=db.inserir_profissional('Ana Souza','Banho e tosa')
++        self.p2=db.inserir_profissional('Bruno Lima','Banho e tosa')
++        self.futuro=(datetime.now()+timedelta(days=2)).replace(hour=10,minute=0,second=0,microsecond=0)
++
++    def tearDown(self):
++        db.DB_PATH=self.original
++        self.tmp.cleanup()
++
++    def agendar(self,animal=None,profissional=None,inicio=None):
++        return db.inserir_atendimento(animal or self.a1,self.s,inicio or self.futuro,profissional or self.p1)
++
++    def realizar(self,inicio=None):
++        id_=self.agendar()
++        db.atualizar_atendimento(id_,self.a1,self.s,inicio or datetime.now()-timedelta(minutes=5),self.p1)
++        db.concluir_atendimento(id_)
++        return id_
++
++    def test_conclusao_futura_recusada_sem_mudar_estado(self):
++        id_=self.agendar()
++        with self.assertRaisesRegex(v.ErroValidacao,'futuro'): db.concluir_atendimento(id_)
++        self.assertEqual(db.buscar_atendimento(id_)['status'],'agendado')
++        self.assertEqual(db.listar_atendimentos(status='concluido'),[])
++
++    def test_reagendar_passado_e_concluir(self):
++        id_=self.realizar()
++        a=db.buscar_atendimento(id_)
++        self.assertEqual(a['status'],'concluido')
++        self.assertIsNotNone(a['concluido_em'])
++
++    def test_reagendar_minuto_atual_e_concluir(self):
++        id_=self.realizar(datetime.now().replace(second=0,microsecond=0))
++        self.assertEqual(db.buscar_atendimento(id_)['status'],'concluido')
++
++    def test_reagendar_futuro_continua_sem_poder_concluir(self):
++        id_=self.agendar()
++        db.atualizar_atendimento(id_,self.a1,self.s,self.futuro+timedelta(days=1),self.p1)
++        with self.assertRaises(v.ErroValidacao): db.concluir_atendimento(id_)
++
++    def test_tutor_historico_e_novo_atendimento(self):
++        antigo=self.realizar(datetime.now()-timedelta(days=1))
++        db.atualizar_animal(self.a1,self.c2,'Mel','Gato','','')
++        novo=self.agendar()
++        db.atualizar_atendimento(novo,self.a1,self.s,datetime.now()-timedelta(minutes=2),self.p1)
++        db.concluir_atendimento(novo)
++        db.atualizar_cliente(self.c1,'Tutor renomeado','85999990000','','','52998224725')
++        db.atualizar_cliente(self.c2,'Novo tutor renomeado','85999990001','','','11144477735')
++        linhas={a['id_atendimento']:a for a in db.listar_atendimentos(status='concluido')}
++        self.assertEqual(linhas[antigo]['tutor'],'Tutor original')
++        self.assertEqual(linhas[novo]['tutor'],'Novo tutor')
++        self.assertEqual(db.listar_atendimentos('Tutor original','concluido')[0]['id_atendimento'],antigo)
++
++    def test_tutor_da_realizacao_e_nao_so_do_agendamento(self):
++        id_=self.agendar()
++        db.atualizar_atendimento(id_,self.a1,self.s,datetime.now()-timedelta(minutes=2),self.p1)
++        db.atualizar_animal(self.a1,self.c2,'Mel','Gato','','')
++        db.concluir_atendimento(id_)
++        self.assertEqual(db.listar_atendimentos(status='concluido')[0]['tutor'],'Novo tutor')
++
++    def test_servico_e_profissional_historicos_preservados(self):
++        self.realizar()
++        db.atualizar_servico(self.s,'Banho premium','','80,75',90)
++        db.atualizar_profissional(self.p1,'Ana renomeada','Supervisão')
++        a=db.listar_atendimentos(status='concluido')[0]
++        self.assertEqual((a['servico'],a['profissional'],a['valor_centavos'],a['duracao_min']),('Banho','Ana Souza',5005,60))
++
++    def test_centavos_entrada_exibicao_e_soma(self):
++        self.assertEqual(v.preco_centavos('0,10')+v.preco_centavos('0.20'),30)
++        self.assertEqual(v.formatar_centavos(30),'R$ 0,30')
++        self.assertEqual(v.formatar_centavos(123456),'R$ 1.234,56')
++        self.assertEqual(v.valor_para_campo(5005),'50,05')
++        for entrada,esperado in [('50',5000),('50,5',5050),('50.05',5005),('0,01',1)]:
++            with self.subTest(entrada=entrada): self.assertEqual(v.preco_centavos(entrada),esperado)
++        with db.conectar() as con:
++            r=con.execute('SELECT preco_centavos,typeof(preco_centavos) tipo FROM servico').fetchone()
++        self.assertEqual((r['preco_centavos'],r['tipo']),(5005,'integer'))
++
++    def test_fracao_de_centavo_e_formato_ambiguo_recusados(self):
++        for preco in ['0.005','10,999','1.234,56','nan','inf','-1','1e2',True,'1000000000']:
++            with self.subTest(preco=preco),self.assertRaises(v.ErroValidacao): db.inserir_servico('Outro','',preco,30)
++
++    def test_centavos_soma_historico(self):
++        db.atualizar_servico(self.s,'Banho','','0,10',60)
++        self.realizar(datetime.now()-timedelta(days=2))
++        db.atualizar_servico(self.s,'Banho','','0,20',60)
++        self.realizar(datetime.now()-timedelta(days=1))
++        self.assertEqual(sum(a['valor_centavos'] for a in db.listar_atendimentos(status='concluido')),30)
++
++    def test_profissional_obrigatorio_ativo_e_unico(self):
++        with self.assertRaises(v.ErroValidacao): db.inserir_atendimento(self.a1,self.s,self.futuro)
++        with self.assertRaises(v.ErroValidacao): db.inserir_profissional(' ANA SOUZA ','Outro')
++        db.definir_profissional_ativo(self.p1,False)
++        with self.assertRaises(v.ErroValidacao): self.agendar()
++        self.assertEqual(len(db.listar_profissionais(True)),1)
++
++    def test_mesmo_profissional_outro_animal_bloqueia_intervalo(self):
++        self.agendar()
++        for minutos in [0,1,30,59,-1,-30]:
++            with self.subTest(minutos=minutos),self.assertRaisesRegex(v.ErroValidacao,'profissional'):
++                self.agendar(self.a2,inicio=self.futuro+timedelta(minutes=minutos))
++
++    def test_profissionais_distintos_podem_atender_em_paralelo(self):
++        self.agendar()
++        self.agendar(self.a2,self.p2)
++        self.assertEqual(len(db.listar_atendimentos()),2)
++        self.assertEqual(len(db.listar_atendimentos(id_profissional=self.p2)),1)
++
++    def test_mesmo_animal_outro_profissional_continua_bloqueado(self):
++        self.agendar()
++        with self.assertRaisesRegex(v.ErroValidacao,'animal'): self.agendar(profissional=self.p2)
++
++    def test_inicio_no_fim_exato_permitido(self):
++        self.agendar()
++        self.agendar(self.a2,inicio=self.futuro+timedelta(minutes=60))
++        a=db.listar_atendimentos()[0]
++        self.assertEqual(a['fim_estimado'],(self.futuro+timedelta(minutes=60)).isoformat(timespec='minutes'))
++
++    def test_intervalo_atravessa_meia_noite(self):
++        inicio=self.futuro.replace(hour=23,minute=30)
++        self.agendar(inicio=inicio)
++        with self.assertRaises(v.ErroValidacao): self.agendar(self.a2,inicio=inicio+timedelta(minutes=45))
++
++    def test_segundos_nao_burlam_sobreposicao(self):
++        self.agendar(inicio=self.futuro+timedelta(seconds=59))
++        with self.assertRaises(v.ErroValidacao): self.agendar(self.a2,inicio=self.futuro+timedelta(minutes=59,seconds=59))
++
++    def test_cancelar_libera_profissional(self):
++        id_=self.agendar()
++        db.cancelar_atendimento(id_,'Tutor viajou')
++        self.agendar(self.a2)
++
++    def test_concluir_antes_do_fim_nao_libera_reserva(self):
++        inicio=datetime.now()-timedelta(minutes=5)
++        self.realizar(inicio)
++        with self.assertRaisesRegex(v.ErroValidacao,'profissional'):
++            self.agendar(self.a2,inicio=datetime.now()+timedelta(minutes=5))
++
++    def test_reagendar_sem_conflitar_consigo_e_rejeitar_conflito(self):
++        id_=self.agendar()
++        db.atualizar_atendimento(id_,self.a1,self.s,self.futuro,self.p2)
++        outro=self.agendar(self.a2,self.p1)
++        with self.assertRaises(v.ErroValidacao): db.atualizar_atendimento(id_,self.a1,self.s,self.futuro,self.p1)
++        self.assertEqual(db.buscar_atendimento(id_)['id_profissional'],self.p2)
++        self.assertEqual(db.buscar_atendimento(outro)['id_profissional'],self.p1)
++
++    def test_reagendar_preserva_preco_duracao_e_descricao(self):
++        id_=self.agendar()
++        db.atualizar_servico(self.s,'Banho novo','','90,99',10)
++        db.atualizar_atendimento(id_,self.a1,self.s,self.futuro+timedelta(days=1),self.p2)
++        a=db.buscar_atendimento(id_)
++        self.assertEqual((a['valor_centavos'],a['duracao_min'],a['servico_nome']),(5005,60,'Banho'))
++
++    def test_trocar_servico_revalida_nova_duracao(self):
++        id_=self.agendar()
++        self.agendar(self.a2,inicio=self.futuro+timedelta(minutes=60))
++        s2=db.inserir_servico('Tosa','','70,25',90)
++        with self.assertRaises(v.ErroValidacao): db.atualizar_atendimento(id_,self.a1,s2,self.futuro,self.p1)
++        self.assertEqual(db.buscar_atendimento(id_)['id_servico'],self.s)
++
++    def test_concorrencia_mesmo_profissional_animais_distintos(self):
++        def reservar(animal):
++            try: self.agendar(animal);return True
++            except v.ErroValidacao: return False
++        with ThreadPoolExecutor(max_workers=2) as pool:
++            self.assertCountEqual(list(pool.map(reservar,[self.a1,self.a2])),[True,False])
++
++    def test_equipe_demo_repetivel_e_sem_logins(self):
++        popular_demo.popular_profissionais();popular_demo.popular_profissionais()
++        self.assertEqual(len(db.listar_profissionais()),3)
++        self.assertEqual(db.contar_usuarios(),0)
++
++    def test_sql_recusa_centavos_inconsistentes(self):
++        with db.conectar(True) as con:
++            with self.assertRaises(sqlite3.IntegrityError): con.execute('UPDATE servico SET preco_centavos=100')
++        self.assertEqual(db.buscar_servico(self.s)['preco_centavos'],5005)
++
++    def test_migracao_legada_preserva_ids_e_indica_origem(self):
++        db.DB_PATH=str(Path(self.tmp.name)/'legado.db')
++        with closing(sqlite3.connect(db.DB_PATH)) as con:
++            con.executescript('''CREATE TABLE cliente(id_cliente INTEGER PRIMARY KEY,nome TEXT,telefone TEXT,email TEXT,endereco TEXT);
++                INSERT INTO cliente VALUES(7,'Tutor disponível','85999990000',NULL,'');
++                CREATE TABLE animal(id_animal INTEGER PRIMARY KEY,id_cliente INTEGER,nome TEXT,especie TEXT,raca TEXT,observacoes TEXT);
++                INSERT INTO animal VALUES(8,7,'Mel','Gato','','');
++                CREATE TABLE servico(id_servico INTEGER PRIMARY KEY,nome TEXT,descricao TEXT,preco REAL,duracao_min INTEGER,ativo INTEGER);
++                INSERT INTO servico VALUES(9,'Banho','',10.005,60,1);
++                CREATE TABLE atendimento(id_atendimento INTEGER PRIMARY KEY,id_animal INTEGER,id_servico INTEGER,data_hora TEXT,valor REAL,status TEXT,motivo_cancelamento TEXT);
++                INSERT INTO atendimento VALUES(10,8,9,'2026-01-01T10:00',10.005,'concluido',NULL);
++                INSERT INTO atendimento VALUES(11,8,9,'2026-01-02T10:00',10.005,'agendado',NULL);''')
++        db.criar_tabelas();db.criar_tabelas()
++        a=db.listar_atendimentos(status='concluido')[0]
++        self.assertEqual((a['id_atendimento'],a['tutor'],a['valor_centavos'],a['origem_historico']),(10,'Tutor disponível',1001,'migracao'))
++        self.assertEqual(a['profissional'],'Não informado (legado)')
++        with self.assertRaisesRegex(v.ErroValidacao,'profissional'): db.concluir_atendimento(11)
++        with db.conectar() as con: self.assertEqual(con.execute('SELECT count(*) FROM ajuste_monetario_migracao').fetchone()[0],3)
++        db.atualizar_cliente(7,'Outro nome','85999990000','','',None)
++        self.assertEqual(db.listar_atendimentos(status='concluido')[0]['tutor'],'Tutor disponível')
++
++
++if __name__=='__main__': unittest.main()
+--- a/petshop_mvp/petshop/tests/test_sistema.py
++++ b/petshop_mvp/petshop/tests/test_sistema.py
+@@ -26,10 +26,11 @@
+         db.criar_tabelas()
+         db.inserir_cliente('Ana','86999990000','ana@example.com','Rua A','52998224725')
+         db.inserir_animal(1,'Mel','Gato','','');db.inserir_servico('Banho','',50,60)
++        db.inserir_profissional('Ana Souza','Banho e tosa')
+         self.futuro=(datetime.now()+timedelta(days=2)).replace(second=0,microsecond=0)
+     def tearDown(self):
+         db.DB_PATH=self.original;self.tmp.cleanup()
+-    def agendar(self): return db.inserir_atendimento(1,1,self.futuro)
++    def agendar(self): return db.inserir_atendimento(1,1,self.futuro,1)
+ 
+     def test_normalizacao(self):
+         db.atualizar_cliente(1,' Ana ','(86) 99999-0000',' ANA@EXAMPLE.COM ','Rua A','529.982.247-25')
+@@ -80,18 +81,18 @@
+         self.agendar();a=db.buscar_atendimento(1);self.assertEqual((a['valor'],a['duracao_min'],a['status']),(50,60,'agendado'))
+     def test_sobreposicao_e_limite_exato(self):
+         self.agendar()
+-        with self.assertRaises(v.ErroValidacao): db.inserir_atendimento(1,1,self.futuro+timedelta(minutes=30))
+-        db.inserir_atendimento(1,1,self.futuro+timedelta(minutes=60));self.assertEqual(len(db.listar_atendimentos()),2)
++        with self.assertRaises(v.ErroValidacao): db.inserir_atendimento(1,1,self.futuro+timedelta(minutes=30),1)
++        db.inserir_atendimento(1,1,self.futuro+timedelta(minutes=60),1);self.assertEqual(len(db.listar_atendimentos()),2)
+     def test_reagendar_preserva_snapshot(self):
+         self.agendar();db.atualizar_servico(1,'Banho','',80,10)
+         self.assertTrue(db.existe_sobreposicao(1,self.futuro+timedelta(minutes=30),10))
+-        db.atualizar_atendimento(1,1,1,self.futuro+timedelta(days=1));a=db.buscar_atendimento(1)
++        db.atualizar_atendimento(1,1,1,self.futuro+timedelta(days=1),1);a=db.buscar_atendimento(1)
+         self.assertEqual((a['valor'],a['duracao_min']),(50,60))
+     def test_troca_servico_copia_novos_valores(self):
+-        self.agendar();db.inserir_servico('Tosa','',80,90);db.atualizar_atendimento(1,1,2,self.futuro)
++        self.agendar();db.inserir_servico('Tosa','',80,90);db.atualizar_atendimento(1,1,2,self.futuro,1)
+         a=db.buscar_atendimento(1);self.assertEqual((a['valor'],a['duracao_min']),(80,90))
+     def test_data_passada_e_servico_inativo(self):
+-        with self.assertRaises(v.ErroValidacao): db.inserir_atendimento(1,1,datetime.now()-timedelta(days=1))
++        with self.assertRaises(v.ErroValidacao): db.inserir_atendimento(1,1,datetime.now()-timedelta(days=1),1)
+         db.definir_servico_ativo(1,False)
+         with self.assertRaises(v.ErroValidacao): self.agendar()
+         self.assertEqual(db.listar_servicos(True),[])
+@@ -101,8 +102,8 @@
+         db.cancelar_atendimento(1,'Tutor viajou');self.assertEqual(db.buscar_atendimento(1)['motivo_cancelamento'],'Tutor viajou')
+         self.assertFalse(db.existe_sobreposicao(1,self.futuro,60))
+     def test_status_final_bloqueia_mutacoes(self):
+-        self.agendar();db.concluir_atendimento(1)
+-        for acao in [lambda:db.cancelar_atendimento(1,'x'),lambda:db.concluir_atendimento(1),lambda:db.atualizar_atendimento(1,1,1,self.futuro)]:
++        self.agendar();db.atualizar_atendimento(1,1,1,datetime.now()-timedelta(minutes=1),1);db.concluir_atendimento(1)
++        for acao in [lambda:db.cancelar_atendimento(1,'x'),lambda:db.concluir_atendimento(1),lambda:db.atualizar_atendimento(1,1,1,self.futuro,1)]:
+             with self.assertRaises(v.ErroValidacao): acao()
+         self.assertEqual(len(db.listar_atendimentos('Mel','concluido')),1)
+     def test_sql_externo_restricoes(self):
+@@ -112,7 +113,7 @@
+     def test_rollback_multiplas_escritas(self):
+         with self.assertRaises(RuntimeError):
+             with db.conectar(True) as con:
+-                con.execute("UPDATE cliente SET nome='Mudou'");con.execute("UPDATE servico SET preco=99");raise RuntimeError('falha')
++                con.execute("UPDATE cliente SET nome='Mudou'");con.execute("UPDATE servico SET preco=99,preco_centavos=9900");raise RuntimeError('falha')
+         self.assertEqual(db.buscar_cliente(1)['nome'],'Ana');self.assertEqual(db.buscar_servico(1)['preco'],50)
+     def test_isolamento_e_wal(self):
+         with db.conectar(True) as con:
+--- a/petshop_mvp/petshop/validacoes.py
++++ b/petshop_mvp/petshop/validacoes.py
+@@ -1,6 +1,6 @@
+ """Normalização e validações de entrada para o MVP."""
+-import math
+ import re
++from decimal import Decimal, InvalidOperation
+ from datetime import datetime
+ 
+ 
+@@ -26,10 +26,32 @@
+ 
+ 
+ def preco(valor):
+-    try: p=float(str(valor).replace(',','.'))
+-    except (ValueError,TypeError): raise ErroValidacao('Preço deve ser um número.') from None
+-    if not math.isfinite(p) or p<=0: raise ErroValidacao('Preço deve ser finito e maior que zero.')
++    try:
++        texto=str(valor).strip()
++        if not re.fullmatch(r'[0-9]+(?:[.,][0-9]+)?',texto): raise InvalidOperation
++        p=Decimal(texto.replace(',','.'))
++        if not p.is_finite() or p<=0: raise InvalidOperation
++        if p != p.quantize(Decimal('0.01')):
++            raise ErroValidacao('Preço deve ter no máximo duas casas decimais.')
++        if p > Decimal('999999999.99'):
++            raise ErroValidacao('Preço deve ser no máximo R$ 999.999.999,99.')
++    except (InvalidOperation,ValueError,TypeError):
++        raise ErroValidacao('Preço deve ser um número maior que zero, com até duas casas decimais.') from None
+     return p
++
++
++def preco_centavos(valor):
++    return int(preco(valor)*100)
++
++
++def valor_para_campo(centavos):
++    inteiro,fracao=divmod(centavos,100)
++    return f'{inteiro},{fracao:02d}'
++
++
++def formatar_centavos(centavos):
++    inteiro,fracao=divmod(centavos,100)
++    return f"R$ {inteiro:,}".replace(',','.')+f',{fracao:02d}'
+ 
+ 
+ def inteiro_positivo(valor,campo):
+@@ -41,9 +63,14 @@
+     return n
+ 
+ 
+-def data_hora_futura(texto):
++def data_hora(texto):
+     try: dt=datetime.strptime(texto.strip(),'%d/%m/%Y %H:%M')
+     except ValueError: raise ErroValidacao('Data/hora inválida. Use dd/mm/aaaa hh:mm.') from None
++    return dt
++
++
++def data_hora_futura(texto):
++    dt=data_hora(texto)
+     if dt<=datetime.now(): raise ErroValidacao('Não é possível agendar em data ou hora passada.')
+     return dt
+ 
